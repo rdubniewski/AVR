@@ -1,0 +1,1 @@
+  -p ATtiny44 -c stk200 -P lpt1 -i 20 -E noreset  -U lfuse:w:0xD2:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m -U flash:w:"C:\Users\rafal\projekty\git\AVR\CzujnikParametrowMuru\Debug\CzujnikParametrowMuru.hex":i  

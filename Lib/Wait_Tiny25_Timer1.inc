@@ -1,0 +1,84 @@
+#ifndef _WAIT_TINY25_TIMER1_
+#define _WAIT_TINY25_TIMER1_
+
+
+.macro   WAIT_TICKS_TINY25_TIMER1
+.set     _WAIT_TINY25_TIMER1_TICKS_ = @0 - 15
+    ; zatrzymanie timera
+    ;out     TCCR1, R_ZERO
+    ; kasowanie flagi przepelnienia
+    ldi     R_TMP_1, 1 << TOV1
+    out     TIFR, R_TMP_1
+.if     _WAIT_TINY25_TIMER1_TICKS_ < 1
+    lklk
+.elif     _WAIT_TINY25_TIMER1_TICKS_ < 0x000100
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 1
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 0
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x000200
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 2
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 1
+.elif   WAIT_TIMER_TICKS_TICK_WAIT_TINY25_TIMER1_TICKS_ < 0x000400
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = WAIT_TIMER_TICKS_TICKS / 4
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 2
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x000800
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 8
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 3
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x001000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x10
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 4
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x002000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x20
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 5
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x004000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x40
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 6
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x008000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x80
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 7
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x010000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x100
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 8
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x020000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x200
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 9
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x040000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x400
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 10
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x080000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x800
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 11
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x100000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x1000
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 12
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x200000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x2000
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 13
+.elif   _WAIT_TINY25_TIMER1_TICKS_ < 0x400000
+    .set    _WAIT_TINY25_TIMER1_TCNT_   = _WAIT_TINY25_TIMER1_TICKS_ / 0x4000
+    .set    _WAIT_TINY25_TIMER1_TCCR_   = (1 << CS10) + 14
+.else
+    .error "To many ticks"
+.endif
+    ; licznik
+    ldi     R_TMP_1, 255 - _WAIT_TINY25_TIMER1_TCNT_
+;    out     TCNT1, R_TMP_1
+    ; preskaler
+    ldi     R_TMP_2, _WAIT_TINY25_TIMER1_TCCR_
+;   out     TCCR1, R_TMP_1
+    ; poczekanie na koniec
+;    in      R_TMP_1, TIFR
+;    sbrs    R_TMP_1, TOV1
+;    rjmp    PC - 2
+    rcall   WAIT_TINY25_TIMER1_WAIT_F
+.endmacro
+
+.macro  WAIT_MICROSEC_MINUS_TICKS_TINY25_TIMER1
+    WAIT_TICKS_TINY25_TIMER1    (@0) * FREQUENCY / 1000000 - @1
+.endmacro
+
+.macro  WAIT_MICROSEC_TINY25_TIMER1
+    WAIT_TICKS_TINY25_TIMER1    (@0) * FREQUENCY / 1000000
+.endmacro
+
+
+#endif

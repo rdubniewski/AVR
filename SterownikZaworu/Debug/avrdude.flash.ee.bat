@@ -1,0 +1,1 @@
+ "c:\program files\avrdude\avrdude.exe" -p ATtiny25 -c stk200 -P lpt1 -i 50 -U lfuse:w:0xC1:m -U hfuse:w:0xDF:m  -U efuse:w:0xFF:m  -U flash:w:"C:\Users\Public\Wymiana\Rafal\AVR\SterownikZaworu\Debug\SterownikZaworu.hex":i  -U eeprom:w:"C:\Users\Public\Wymiana\Rafal\AVR\SterownikZaworu\Debug\SterownikZaworu.eep":i  

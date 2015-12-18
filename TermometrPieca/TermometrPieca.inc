@@ -69,18 +69,21 @@ Modified:			2012.03.29
 .equ    I2C_START_STORE_SREG                    = 1
 
 
+; Rejestry u¿ywana w funkcji CHECK_HEATER_POINTER
+.def    R_HEAT_CONFIG_L                         = r2
+.def    R_HEAT_CONFIG_H                         = r3
+.def    R_HEAT_TEMPERATURE_ON                   = r4
+.def    R_HEAT_TEMPERATURE_OFF                  = r5
+.def    R_HEAT_TEMPERATURE_ON_L                 = r6
+.def    R_HEAT_TEMPERATURE_ON_H                 = r7
+.def    R_HEAT_TEMPERATURE_ON_CALC_L            = r8
+.def    R_HEAT_TEMPERATURE_ON_CALC_H            = r9
+.def    R_HEAT_TEMPERATURE_OFF_L                = r10
+.def    R_HEAT_TEMPERATURE_OFF_H                = r11
+.def    R_HEAT_TEMPERATURE_OFF_CALC_L           = r12
+.def    R_HEAT_TEMPERATURE_OFF_CALC_H           = r13
 
-.def    R_HEAT_TEMPERATURE_OFF                  = r2
-.def    R_HEAT_TEMPERATURE_ON                   = r3
-.def    R_HEAT_CONFIG_L                         = r4
-.def    R_HEAT_CONFIG_H                         = r5
-.def    R_HEAT_CEMPERATURE_CALC_0               = r6
-.def    R_HEAT_CEMPERATURE_CALC_1               = r7
-.def    R_HEAT_TEMPERATURE_OFF_0                = r8
-.def    R_HEAT_TEMPERATURE_OFF_1                = r9
-.def    R_HEAT_TEMPERATURE_ON_0                 = r10
-.def    R_HEAT_TEMPERATURE_ON_1                 = r11
-
+; Rejestry u¿ywane w funkcji OWIRE_MASTER_SEARCH_ROM
 .def    R_OWIRE_MASTER_STACK                    = r11
 .def    R_OWIRE_MASTER_STACK_PTR                = r12
 .def    R_OWIRE_MASTER_STACK_PTR_MAX            = r13
@@ -143,6 +146,8 @@ Modified:			2012.03.29
 DEFINE_IO   OWIRE_MASTER,   B, 4
 DEFINE_IO   SCL,            B, 2
 DEFINE_IO   SDA,            B, 0
+DEFINE_IO   HEATER_0,       B, 1
+DEFINE_IO   HEATER_1,       B, 3
 
 
 ; Organizacja RAMU
@@ -159,8 +164,8 @@ STATE:                                  .byte   1
     .equ    STATE_CONTINUE_BIT                  = 3
     .equ    STATE_SORT_BIT                      = 4
     .equ    STATE_SORT_DESCENDING_BIT           = 5
-    .equ    STATE_HEAT_0                        = 6
-    .equ    STATE_HEAT_1                        = 7
+    .equ    STATE_HEAT_0_BIT                    = 6
+    .equ    STATE_HEAT_1_BIT                    = 7
 ;    .equ    MEASURE_STATE_MASK                  = 1 << MEASURE_STATE_MEASURING_BIT |  \
 ;                                              1 << MEASURE_STATE_COMPLETE_BIT  |  \
 ;                                              1 << MEASURE_STATE_OBSOLETE_BIT
@@ -176,8 +181,8 @@ HEAT_0_CONFIG_L:                        .byte   1
 HEAT_0_TEMPERATURE_ON:                  .byte   1
 HEAT_0_TEMPERATURE_OFF:                 .byte   1
 HEAT_1:
-HEAT_1_CONFIG_H:                        .byte   2
-HEAT_1_CONFIG_L:                        .byte   2
+HEAT_1_CONFIG_H:                        .byte   1
+HEAT_1_CONFIG_L:                        .byte   1
 HEAT_1_TEMPERATURE_ON:                  .byte   1
 HEAT_1_TEMPERATURE_OFF:                 .byte   1
 

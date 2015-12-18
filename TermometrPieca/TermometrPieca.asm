@@ -83,6 +83,7 @@ RESET_SOFT:
     out     SPL, R_TMP_1
 
     ; Test w³¹czania i wy³¹czania grza³ek
+    /*
     stsi    SENSOR_COUNT, 12
     stsi    SENSORS_TEMPERATURE + 0, 20
     stsi    SENSORS_TEMPERATURE + 1, 21
@@ -96,18 +97,23 @@ RESET_SOFT:
     stsi    SENSORS_TEMPERATURE + 9, 29
     stsi    SENSORS_TEMPERATURE + 10, 30
     stsi    SENSORS_TEMPERATURE + 11, 31
-    stsi    HEAT_0_CONFIG_H, (0b00010100)
+    stsi    HEAT_0_CONFIG_H, (0b00110000)
     stsi    HEAT_0_CONFIG_L, (0b00010101)
-    stsi    HEAT_0_TEMPERATURE_ON, 20
-    stsi    HEAT_0_TEMPERATURE_OFF, 22
-    ldi     R_POINTER_H, high(HEAT_0)
-    ldi     R_POINTER_L, low(HEAT_0)
-    rcall   CHECK_HEATER_POINTER
+    stsi    HEAT_0_TEMPERATURE_ON, 25
+    stsi    HEAT_0_TEMPERATURE_OFF, 30
+    stsi    HEAT_1_CONFIG_H, (0b01110000)
+    stsi    HEAT_1_CONFIG_L, (0b00101010)
+    stsi    HEAT_1_TEMPERATURE_ON, 25
+    stsi    HEAT_1_TEMPERATURE_OFF, 30
+    rcall   CHECK_HEATERS
+    */
 
     ; zainicjowanie portow
     clr     R_TMP_1
     out     DDRB, R_TMP_1
-    out     PORTB, R_TMP_1	
+    out     PORTB, R_TMP_1
+    sbi     HEATER_0_DDR, HEATER_0_BIT
+    sbi     HEATER_1_DDR, HEATER_1_BIT
     ; komunikacja z czujnikami
     OWIRE_MASTER_1
 
@@ -173,8 +179,11 @@ MAIN_LOOP:
     rcall   BEGIN_MEASURE
 
     ; Pobranie pomiarow
-    sbrc    R_CONTROL, R_CONTROL_READ_TEMPERATURE_BIT
+    sbrs    R_CONTROL, R_CONTROL_READ_TEMPERATURE_BIT
+    rjmp    _M_READ_TEMPERATURE_SKIP
     rcall   READ_TEMPERATURE_ALL_SENSORS
+    rcall   CHECK_HEATERS
+_M_READ_TEMPERATURE_SKIP:
 
     ; przetwarzainie zadania z I2C
     sbrc    R_CONTROL, R_CONTROL_I2C_READ_BYTE_BIT
@@ -190,7 +199,7 @@ MAIN_LOOP:
     rjmp    MAIN_LOOP
 ;----------------------------------------------------------------------------
 CHECK_TIMER:
-    ; wykazowanie flagi timera
+    ; wykasowanie flagi timera
     cbr     R_CONTROL, 1 << R_CONTROL_CHECK_TIMER_BIT
 
     inc     R_TIMER_COUNTER
@@ -549,7 +558,7 @@ READ_TEMPERATURE:
     ; odczyt pamieci czujnika
     rcall   DS18B20_READ_SCRATCHPAD
 
-    ; przekopiowanie do pamieci (tablica SENSORS_TEMPERATURE:) 
+    ; przekopiowanie do pamieci (tablica SENSORS_TEMPERATURE:)
     ; wartosci temperatury zaokraglonej do 1 stopnia.
     lds     R_TMP_1, DS18B20_SCRATCHPAD_TEMPERATURE_L
     lds     R_TMP_2, DS18B20_SCRATCHPAD_TEMPERATURE_H
@@ -568,7 +577,7 @@ READ_TEMPERATURE:
     push    XH
     ldi     XL, low(SENSORS_TEMPERATURE)
     ldi     XH, high(SENSORS_TEMPERATURE)
-    ; przesuniecie na wlasciwy indeks	
+    ; przesuniecie na wlasciwy indeks
     clr     R_TMP_1
     add     XL, R_SENSOR_NR
     adc     XH, R_TMP_1
@@ -580,7 +589,7 @@ READ_TEMPERATURE:
 
     ret
 ;----------------------------------------------------------------------------
-; sortuje tablice SENSORS_TEMPERATURE odczytanych temperatur, 
+; sortuje tablice SENSORS_TEMPERATURE odczytanych temperatur,
 ; na poczatku wieksze.
 ; Nastepnie przekopiowuje posortowane temperatury do tablicy
 ; SENSORS_TEMPERATURE_SORTED
@@ -641,19 +650,85 @@ _ST_PASS_LOOP_NO_SWAP:
 _ST_END:
 
     ret
+
+;----------------------------------------------------------------------------
+CHECK_HEATERS:
+    lds R_TMP_1, STATE
+
+_CH_CHECK:
+    ; grza³ka 0
+_CH_0:
+    ldi     R_POINTER_H, high(HEAT_0)
+    ldi     R_POINTER_L, low(HEAT_0)
+    rcall   CHECK_HEATER_POINTER
+    sts     HEAT_0_CONFIG_H, R_DATA
+    lds     R_TMP_1, STATE
+    ; w³¹czenie grza³ki 0
+    brtc    PC + 3
+    sbi     HEATER_0_PORT, HEATER_0_BIT
+    sbr     R_TMP_1, 1 << STATE_HEAT_0_BIT
+    ; wy³¹czenie grza³ki 0
+    brts    PC + 3
+    cbi     HEATER_0_PORT, HEATER_0_BIT
+    cbr     R_TMP_1, 1 << STATE_HEAT_0_BIT
+    sts     STATE, R_TMP_1
+
+    ; grza³ka 1
+    ; sprawdzenie czy grzalka 1 mo¿e byc wylaczona grzalka 0
+    sbrs    R_TMP_1, STATE_HEAT_0_BIT
+    rjmp    _CH_1
+    ; sprawdzenie czy grza³ka 1 mo¿e grzaæ jednoczeœnie z grza³k¹ 0
+    lds     R_TMP_1, HEAT_1_CONFIG_H
+    sbrs    R_TMP_1, 6
+    rjmp    _CH_1_OFF
+
+    ; obsluga grzalki 1
+_CH_1:
+    ldi     R_POINTER_H, high(HEAT_1)
+    ldi     R_POINTER_L, low(HEAT_1)
+    rcall   CHECK_HEATER_POINTER
+    sts     HEAT_1_CONFIG_H, R_DATA
+    lds     R_TMP_1, STATE
+    ; w³¹czenie grza³ki 0
+    brtc    PC + 3
+    sbi     HEATER_1_PORT, HEATER_1_BIT
+    sbr     R_TMP_1, 1 << STATE_HEAT_1_BIT
+    ; wy³¹czenie grza³ki 0
+    brts    PC + 3
+_CH_1_OFF:
+    cbi     HEATER_1_PORT, HEATER_1_BIT
+    cbr     R_TMP_1, 1 << STATE_HEAT_1_BIT
+    sts     STATE, R_TMP_1
+
+    rjmp    _CH_END
+
+
+_CH_OFF:
+    lds     R_TMP_1, STATE
+    cbi     HEATER_0_PORT, HEATER_0_BIT
+    cbi     HEATER_1_PORT, HEATER_1_BIT
+    cbr     R_TMP_1, 1 << STATE_HEAT_0_BIT || 1 << STATE_HEAT_1_BIT
+    sts     STATE, R_TMP_1
+
+_CH_END:
+
+    ret
 ;----------------------------------------------------------------------------
 ; Czyta ustawienia parametrów grzania z adresu R_POINTER i jezeli grzalka ma 
-; Koniecznoœæ w³¹czenia grza³ki jest zwracana przez flagê SREG-T
-; Rejestry: R_HEAT_TEMPERATURE_OFF, R_HEAT_TEMPERATURE_ON, 
-;           R_HEAT_CONFIG_H, R_HEAT_CONFIG_L,
-;           R_LOOP, R_TMP_1, R_TMP_2
+; Koniecznoœæ w³¹czenia grza³ki jest zwracana przez flagê SREG-T.
+; Starszy bajt konfiguracji HEAT_(n)_CONFIG_H z uwzglednieniem bitu ¿¹dania
+; w³¹czenia grza³ki (odpowiednik SREG-T) jest zwracany przez R_DATA
+; U¿ywane rejestry:
+;   R_HEAT_CONFIG_L, R_HEAT_CONFIG_H, 
+;   R_HEAT_TEMPERATURE_ON, R_HEAT_TEMPERATURE_OFF,
+;   R_HEAT_TEMPERATURE_ON_L, R_HEAT_TEMPERATURE_ON_H,
+;   R_HEAT_TEMPERATURE_ON_CALC_L, R_HEAT_TEMPERATURE_ON_CALC_H,
+;   R_HEAT_TEMPERATURE_OFF_L, R_HEAT_TEMPERATURE_OFF_H,
+;   R_HEAT_TEMPERATURE_OFF_CALC_L, R_HEAT_TEMPERATURE_OFF_CALC_H,
+;   R_LOOP, R_TMP_1, R_TMP_2, R_DATA, R_DATA
 CHECK_HEATER_POINTER:
     clt
-    ; sprawdzenie metody pomiaru, bity 5,4:
-    ;   00-brak,
-    ;   01-srednia,
-    ;   10-minimalna dla dolnego progu, maksymalna dla górnego progu,
-    ;   11-maksymalna dla dolnego progu, minimalna dla górnego progu,
+
     ld      R_HEAT_CONFIG_H, R_POINTER+
     ld      R_HEAT_CONFIG_L, R_POINTER+ 
     ld      R_HEAT_TEMPERATURE_ON, R_POINTER+
@@ -661,29 +736,39 @@ CHECK_HEATER_POINTER:
     ; ustawienie wskaznika na tablice temperatur
     ldi     R_POINTER_H, high(SENSORS_TEMPERATURE)
     ldi     R_POINTER_L, low(SENSORS_TEMPERATURE)
-    
-
     lds     R_LOOP, SENSOR_COUNT
-    ldi     R_POINTER_L, low(SENSORS_TEMPERATURE)
-    ldi     R_POINTER_H, high(SENSORS_TEMPERATURE)
-    clr     R_HEAT_TEMPERATURE_ON_0
-    clr     R_HEAT_TEMPERATURE_ON_1
-    clr     R_HEAT_TEMPERATURE_OFF_0
-    clr     R_HEAT_TEMPERATURE_OFF_1
-    clr     R_HEAT_CEMPERATURE_CALC_0
-    clr     R_HEAT_CEMPERATURE_CALC_1
+    clr     R_HEAT_TEMPERATURE_ON_L
+    clr     R_HEAT_TEMPERATURE_ON_L
+    movw    R_HEAT_TEMPERATURE_ON_CALC_L, R_HEAT_TEMPERATURE_ON_L
+    movw    R_HEAT_TEMPERATURE_OFF_L, R_HEAT_TEMPERATURE_ON_L
+    movw    R_HEAT_TEMPERATURE_OFF_CALC_L, R_HEAT_TEMPERATURE_ON_L
+    ; Zawsze 0, u¿ywany do dodawania przy temperaturze œredniej
     clr     R_TMP_2
+    ; R_DATA bêdzie potrzebny do okreœlenia czy w³¹czyæ/Wylaczyc poniewa¿
+    ; R_HEAT_CONFIG_ulega zmianie przy wyliczaniu temperatur
+    mov     R_DATA, R_HEAT_CONFIG_H
 
+    ; sprawdzenie metody pomiaru, bity 5,4:
+    ;   00-brak,
+    ;   01-srednia,
+    ;   10-minimalna dla dolnego progu, maksymalna dla górnego progu,
+    ;   11-maksymalna dla dolnego progu, minimalna dla górnego progu,
     mov     R_TMP_1, R_HEAT_CONFIG_H
     andi    R_TMP_1, 0b00110000
     cpi     R_TMP_1, 0b00010000
-    brlo    _CHP_OFF
-    push    R_HEAT_CONFIG_H ; bêdzie potrzebny do okreœlenia czy w³¹czyæ,
-                            ; a ulega zmianie przy wyliczaniu temperatur
+    brlo    _CHP_DISABLED
     breq    _CHP_CALCULATE_T_AVG
+    ; dla wyliczen min max temperatury progów musz¹ byæ przepisane 
+    ; poniewa¿ nie sa wyliczane
+    mov     R_HEAT_TEMPERATURE_ON_L, R_HEAT_TEMPERATURE_ON
+    mov     R_HEAT_TEMPERATURE_OFF_L, R_HEAT_TEMPERATURE_OFF
+    ; dalsze trybu rozdzielenie
     cpi     R_TMP_1, 0b00110000
     brlo    _CHP_CALCULATE_T_ON_MIN_OFF_MAX
     breq    _CHP_CALCULATE_T_ON_MAX_OFF_MIN
+
+_CHP_DISABLED:
+    rjmp    _CHP_OFF
 
 _CHP_CALCULATE_T_AVG:
 _CHP_CALCULATE_T_AVG_LOOP:
@@ -696,20 +781,21 @@ _CHP_CALCULATE_T_AVG_LOOP:
     brcc    _CHP_CALCULATE_T_AVG_LOOP_SKIP
 
     ; dodanie temperatury czujnika
-    add     R_HEAT_CEMPERATURE_CALC_0, R_TMP_1
-    adc     R_HEAT_CEMPERATURE_CALC_1, R_TMP_2
+    add     R_HEAT_TEMPERATURE_ON_CALC_L, R_TMP_1
+    adc     R_HEAT_TEMPERATURE_ON_CALC_H, R_TMP_2
     ; dodanie temperatury On
-    add     R_HEAT_TEMPERATURE_ON_0, R_HEAT_TEMPERATURE_ON
-    adc     R_HEAT_TEMPERATURE_ON_1, R_TMP_2
+    add     R_HEAT_TEMPERATURE_ON_L, R_HEAT_TEMPERATURE_ON
+    adc     R_HEAT_TEMPERATURE_ON_H, R_TMP_2
     ; dodanie temperatury Off
-    add     R_HEAT_TEMPERATURE_OFF_0, R_HEAT_TEMPERATURE_OFF
-    adc     R_HEAT_TEMPERATURE_OFF_1, R_TMP_2
+    add     R_HEAT_TEMPERATURE_OFF_L, R_HEAT_TEMPERATURE_OFF
+    adc     R_HEAT_TEMPERATURE_OFF_H, R_TMP_2
 
 _CHP_CALCULATE_T_AVG_LOOP_SKIP:
 
     dec     R_LOOP
     brne    _CHP_CALCULATE_T_AVG_LOOP
 
+    movw    R_HEAT_TEMPERATURE_OFF_CALC_L, R_HEAT_TEMPERATURE_ON_CALC_L
     rjmp    _CHP_CHECK
 
 _CHP_CALCULATE_T_ON_MIN_OFF_MAX:
@@ -725,23 +811,23 @@ _CHP_CALCULATE_T_ON_MIN_OFF_MAX_LOOP:
 
     ; minimalna temperatura dla progu w³¹czania
     brts    PC + 3 ; dla pierwszego czujnika
-    cp      R_TMP_1, R_HEAT_TEMPERATURE_ON_0
+    cp      R_TMP_1, R_HEAT_TEMPERATURE_ON_CALC_L
     brsh    PC + 2
-    mov     R_HEAT_TEMPERATURE_ON_0, R_TMP_1
+    mov     R_HEAT_TEMPERATURE_ON_CALC_L, R_TMP_1
     ; maksymalna temperatura dla progu wy³¹czania
     brts    PC + 3 ; dla pierwszego czujnika
-    cp      R_HEAT_TEMPERATURE_OFF_0, R_TMP_1
+    cp      R_HEAT_TEMPERATURE_OFF_CALC_L, R_TMP_1
     brsh    PC + 2
-    mov     R_HEAT_TEMPERATURE_OFF_0, R_TMP_1
+    mov     R_HEAT_TEMPERATURE_OFF_CALC_L, R_TMP_1
     ; kasowanie flagi bezwzglêdnego ustawienia
     clt
 
 _CHP_CALCULATE_T_ON_MIN_OFF_MAX_LOOP_SKIP:
+
     dec     R_LOOP
     brne    _CHP_CALCULATE_T_ON_MIN_OFF_MAX_LOOP
 
     rjmp    _CHP_CHECK
-
 
 _CHP_CALCULATE_T_ON_MAX_OFF_MIN:
     set     ; flaga SREG-T mówi, ¿eby bezwzglêdnie ustawiæ 
@@ -756,14 +842,14 @@ _CHP_CALCULATE_T_ON_MAX_OFF_MIN_LOOP:
 
     ; maksymalna temperatura dla progu w³¹czania
     brts    PC + 3 ; dla pierwszego czujnika
-    cp      R_HEAT_TEMPERATURE_ON_0, R_TMP_1
+    cp      R_HEAT_TEMPERATURE_ON_CALC_L, R_TMP_1
     brsh    PC + 2
-    mov     R_HEAT_TEMPERATURE_ON_0, R_TMP_1
+    mov     R_HEAT_TEMPERATURE_ON_CALC_L, R_TMP_1
     ; minimalna temperatura dla progu wy³¹czania
     brts    PC + 3 ; dla pierwszego czujnika
-    cp      R_TMP_1, R_HEAT_TEMPERATURE_OFF_0
+    cp      R_TMP_1, R_HEAT_TEMPERATURE_OFF_CALC_L
     brsh    PC + 2
-    mov     R_HEAT_TEMPERATURE_OFF_0, R_TMP_1
+    mov     R_HEAT_TEMPERATURE_OFF_CALC_L, R_TMP_1
     ; kasowanie flagi bezwzglêdnego ustawienia
     clt
 
@@ -773,31 +859,29 @@ _CHP_CALCULATE_T_ON_MAX_OFF_MIN_LOOP_SKIP:
     brne    _CHP_CALCULATE_T_ON_MAX_OFF_MIN_LOOP
 
 _CHP_CHECK:
-    pop     R_TMP_1 ; przywrócenie R_HEAT_CONFIG_H do R_TMP_1, 
-                    ; bo mo¿na na nim robiæ bezpoœrednie operacje zapisu
-
     ; Sprawdzenie czy wlaczyc
-    sbrc    R_TMP_1, 7
+    sbrc    R_DATA, 7
     rjmp    _CHP_CHECK_ON_SKIP
 _CHP_CHECK_ON:
-    cp      R_HEAT_TEMPERATURE_ON_0, R_HEAT_CEMPERATURE_CALC_0
-    cpc     R_HEAT_TEMPERATURE_ON_1, R_HEAT_CEMPERATURE_CALC_1
+    cp      R_HEAT_TEMPERATURE_ON_L, R_HEAT_TEMPERATURE_ON_CALC_L
+    cpc     R_HEAT_TEMPERATURE_ON_H, R_HEAT_TEMPERATURE_ON_CALC_H
     brlo    _CHP_CHECK_ON_SKIP
-    sbr     R_TMP_1, 1 << 7
+_CHP_ON:
+    sbr     R_DATA, 1 << 7
 _CHP_CHECK_ON_SKIP:
 
     ; sprawdzenie czy wylaczyc
-    sbrs    R_TMP_1, 7
+    sbrs    R_DATA, 7
     rjmp    _CHP_CHECK_OFF_SKIP
 _CHP_CHECK_OFF:
-    cp      R_HEAT_CEMPERATURE_CALC_0, R_HEAT_TEMPERATURE_ON_0
-    cpc     R_HEAT_CEMPERATURE_CALC_1, R_HEAT_TEMPERATURE_ON_1
+    cp      R_HEAT_TEMPERATURE_OFF_CALC_L, R_HEAT_TEMPERATURE_OFF_L
+    cpc     R_HEAT_TEMPERATURE_OFF_CALC_H, R_HEAT_TEMPERATURE_OFF_H
     brlo    _CHP_CHECK_OFF_SKIP
 _CHP_OFF:
-    cbr     R_TMP_1, 1 << 7
+    cbr     R_DATA, 1 << 7
 _CHP_CHECK_OFF_SKIP:
 
-    bst     R_TMP_1, 7
+    bst     R_DATA, 7
 
 _CHP_END:
 

@@ -11,9 +11,8 @@ Modified:           2012.03.29
 
 .include    "TermometrPieca.inc"
 
-.include	"OWireMaster.inc"
-.include	"I2CTinySlave.inc"
-;.include	"Wait.inc"
+.include    "OWireMaster.inc"
+.include    "I2CTinySlave.inc"
 .include    "Wait_Tiny25_Timer0.inc"
 
 #define WAIT_MICROSEC_OWIRE_MASTER              WAIT_MICROSEC_TINY25_TIMER0
@@ -361,6 +360,7 @@ _I2C_CR_SET_HEAT_CONFIGURE_0:
     sts     HEAT_0_CONFIG_H, R_TMP_1
     lds     R_TMP_1, I2C_RECV_DATA_ARG_1
     sts     HEAT_0_CONFIG_L, R_TMP_1
+    rcall   SAVE_HEAT_0_CONFIG_TO_EE
     rjmp    _I2C_CR_END
 
 _I2C_CR_SET_HEAT_TEMPERATURES_0:
@@ -368,6 +368,7 @@ _I2C_CR_SET_HEAT_TEMPERATURES_0:
     sts     HEAT_0_TEMPERATURE_ON, R_TMP_1
     lds     R_TMP_1, I2C_RECV_DATA_ARG_1
     sts     HEAT_0_TEMPERATURE_OFF, R_TMP_1
+    rcall   SAVE_HEAT_0_TEMPERATURES_TO_EE
     rjmp    _I2C_CR_END
 
 _I2C_CR_SET_HEAT_CONFIGURE_1:
@@ -375,6 +376,7 @@ _I2C_CR_SET_HEAT_CONFIGURE_1:
     sts     HEAT_1_CONFIG_H, R_TMP_1
     lds     R_TMP_1, I2C_RECV_DATA_ARG_1
     sts     HEAT_1_CONFIG_L, R_TMP_1
+    rcall   SAVE_HEAT_1_CONFIG_TO_EE
     rjmp    _I2C_CR_END
 
 _I2C_CR_SET_HEAT_TEMPERATURES_1:
@@ -382,6 +384,7 @@ _I2C_CR_SET_HEAT_TEMPERATURES_1:
     sts     HEAT_1_TEMPERATURE_ON, R_TMP_1
     lds     R_TMP_1, I2C_RECV_DATA_ARG_1
     sts     HEAT_1_TEMPERATURE_OFF, R_TMP_1
+    rcall   SAVE_HEAT_1_TEMPERATURES_TO_EE
     rjmp    _I2C_CR_END
 
 _I2C_CR_END:
@@ -887,38 +890,59 @@ _CHP_END:
 
     ret
 ;----------------------------------------------------------------------------
+.macro  EE_BYTE_TO_REG
+    ldi     R_TMP_1, @1
+    out     EEARL, R_TMP_1
+    sbi     EECR, EERE
+    in      @0, EEDR
+.endmacro
+;----------------------------------------------------------------------------
 LOAD_FROM_EE:
     ; poczekanie na ewentualny poprzedni zapis
     sbic    EECR, EEPE
     rjmp    PC-1
 
     ; Adres I2C
-    ldi     R_TMP_1, E_I2C_MY_ADDRESS
-    out     EEARL, R_TMP_1
-    sbi     EECR, EERE
-    in      R_I2C_MY_ADDRESS, EEDR
-
+    EE_BYTE_TO_REG      R_I2C_MY_ADDRESS, E_I2C_MY_ADDRESS
     ; korekta gdy adres nie jest zapisany
     ldi     R_TMP_1, I2C_MY_ADDRESS_DEFAULT
     sbrc    R_I2C_MY_ADDRESS, 0
     mov     R_I2C_MY_ADDRESS, R_TMP_1
 
     ; STATE
-    ldi     R_TMP_1, E_DEFAULT_STATE
-    out     EEARL, R_TMP_1
-    sbi     EECR, EERE
-    in      R_TMP_1, EEDR
-    ; korekta
+    EE_BYTE_TO_REG      R_TMP_1, E_DEFAULT_STATE
+    ; korekta STATE
     cpi     R_TMP_1, 0xFF
     brne    PC + 2
     ldi     R_TMP_1, 0
     sts     STATE, R_TMP_1
 
-    ; E_REPEAT_TIME
-    ldi     R_TMP_1, E_REPEAT_TIME
+    ; SENSOR_COUNT
+    EE_BYTE_TO_REG      R_TMP_1, E_SENSOR_COUNT
+    ; korekta
+    cpi     R_TMP_1, SENSOR_COUNT_MAX + 1
+    brlo    PC + 2
+    ldi     R_TMP_1, 0
+    sts     SENSOR_COUNT, R_TMP_1
+
+    ; Przepisanie ca³ego bloku paiêci odzwierciedlonego w EE
+    ldi     R_TMP_1, E_STORAGE_MEMORY_BEGIN
+    ldi     R_TMP_2, E_STORAGE_MEMORY_END
+    ldi     R_POINTER_H, high(STORAGE_IN_E_BEGIN)
+    ldi     R_POINTER_L, low(STORAGE_IN_E_BEGIN)
+_LFE_LOOP:
+
     out     EEARL, R_TMP_1
     sbi     EECR, EERE
-    in      R_TMP_1, EEDR
+    in      R_DATA, EEDR
+
+    st      R_POINTER+, R_DATA
+    inc     R_TMP_1
+    cp      R_TMP_1, R_TMP_2
+    brne    _LFE_LOOP
+
+    ; korekta E_REPEAT_TIME
+    lds     R_TMP_1, REPEAT_TIME
     andi    R_TMP_1, 1 << STATE_CONTINUE_BIT        |  \
                      1 << STATE_SORT_BIT            |  \
                      1 << STATE_SORT_DESCENDING_BIT
@@ -940,9 +964,69 @@ SAVE_MY_I2C_ADDRESS_TO_EE:
     rjmp    SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
 SAVE_REPEAT_TIME_TO_EE:
-    ldi     R_LOOP, E_REPEAT_TIME
+    ldi     R_LOOP, REPEAT_TIME - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, REPEAT_TIME
     rjmp    SAVE_DATA_TO_EE
+;----------------------------------------------------------------------------
+SAVE_SENSORS_TO_EE:
+    ; zapis iloœci czujników
+    ldi     R_LOOP, E_SENSOR_COUNT
+    lds     R_DATA, SENSOR_COUNT
+    rcall   SAVE_DATA_TO_EE
+    ; zapis ROMów czujników
+    ldi     R_POINTER_H, high(SENSOR_ROMS)
+    ldi     R_POINTER_L, low(SENSOR_ROMS)
+    ldi     R_LOOP, E_STORAGE_MEMORY_BEGIN + SENSOR_ROMS - STORAGE_IN_E_BEGIN
+    ; pêtla zapisu poszczególnych czujników
+    lds     R_SENSOR_NR, SENSOR_COUNT
+_SSTE_LOOP_1:
+    ; pêtla zapisu pojedynczego czujnika
+    ldi     R_TMP_2, O_WIRE_ROM_STORE_SIZE
+_SSTE_LOOP_2:
+    ; zapis
+    ld      R_DATA, R_POINTER+
+    inc     R_LOOP
+    rcall   SAVE_DATA_TO_EE
+
+    dec     R_TMP_2
+    brne    _SSTE_LOOP_2
+
+    dec     R_SENSOR_NR
+    brne    _SSTE_LOOP_1
+
+    ret
+;----------------------------------------------------------------------------
+SAVE_HEAT_0_CONFIG_TO_EE:
+    ldi     R_LOOP, HEAT_0_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_0_CONFIG_H
+    rcall   SAVE_DATA_TO_EE
+    ldi     R_LOOP, HEAT_0_CONFIG_L - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_0_CONFIG_L
+    rjmp   SAVE_DATA_TO_EE
+;----------------------------------------------------------------------------
+SAVE_HEAT_0_TEMPERATURES_TO_EE:
+    ldi     R_LOOP, HEAT_0_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_0_TEMPERATURE_ON
+    rcall   SAVE_DATA_TO_EE
+    ldi     R_LOOP, HEAT_0_TEMPERATURE_OFF - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_0_TEMPERATURE_OFF
+    rjmp   SAVE_DATA_TO_EE
+;----------------------------------------------------------------------------
+SAVE_HEAT_1_CONFIG_TO_EE:
+    ldi     R_LOOP, HEAT_1_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_1_CONFIG_H
+    rcall   SAVE_DATA_TO_EE
+    ldi     R_LOOP, HEAT_1_CONFIG_L - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_1_CONFIG_L
+    rjmp   SAVE_DATA_TO_EE
+;----------------------------------------------------------------------------
+SAVE_HEAT_1_TEMPERATURES_TO_EE:
+    ldi     R_LOOP, HEAT_1_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_1_TEMPERATURE_ON
+    rcall   SAVE_DATA_TO_EE
+    ldi     R_LOOP, HEAT_1_TEMPERATURE_OFF - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    lds     R_DATA, HEAT_1_TEMPERATURE_OFF
+    rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
 SAVE_DATA_TO_EE:
     ; poczekanie na poprzedni zapis

@@ -172,6 +172,8 @@ STATE:                                  .byte   1
 SENSOR_COUNT:                           .byte   1
 ; odczytane i temperatury czujnikow
 SENSORS_TEMPERATURE:                    .byte   SENSOR_COUNT_MAX
+; Pocz¹tek odzwierciedlania pamiêci w EEpromie
+STORAGE_IN_E_BEGIN:
 ; Tablica odnalezionych ROMow czujnikow
 SENSOR_ROMS:                            .byte   O_WIRE_ROM_STORE_SIZE * SENSOR_COUNT_MAX
 REPEAT_TIME:                            .byte   1
@@ -186,6 +188,10 @@ HEAT_1_CONFIG_L:                        .byte   1
 HEAT_1_TEMPERATURE_ON:                  .byte   1
 HEAT_1_TEMPERATURE_OFF:                 .byte   1
 
+; Konie odzwierciedlania pamiêci w EEpromie
+STORAGE_IN_E_END:
+
+; Koniec pamiêci zwracanej przez i2c
 I2C_SEND_DATA_END:
 
 
@@ -223,7 +229,9 @@ OWIRE_ROM_ID_5:                         .byte   1
 
 E_I2C_MY_ADDRESS:                       .db I2C_MY_ADDRESS_DEFAULT
 E_DEFAULT_STATE:                        .db 0
-E_REPEAT_TIME:                          .db 0
+E_SENSOR_COUNT:                         .db 0xFF
+E_STORAGE_MEMORY_BEGIN:                 .byte   (STORAGE_IN_E_END - STORAGE_IN_E_BEGIN)
+E_STORAGE_MEMORY_END:
 ;.equ OWIRE_MASTER_SEARCH_ROM_USING	= 1
 
 ; Wskazanie, ze OWIRE_ROM zostal zdefiniowany poza OWireMaster.asm

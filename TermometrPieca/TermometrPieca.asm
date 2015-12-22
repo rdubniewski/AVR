@@ -985,12 +985,11 @@ _SSTE_LOOP_1:
 _SSTE_LOOP_2:
     ; zapis
     ld      R_DATA, R_POINTER+
-    inc     R_LOOP
     rcall   SAVE_DATA_TO_EE
-
+    ; warubek _SSTE_LOOP_2
     dec     R_TMP_2
     brne    _SSTE_LOOP_2
-
+    ; warubek _SSTE_LOOP_1
     dec     R_SENSOR_NR
     brne    _SSTE_LOOP_1
 
@@ -1000,7 +999,6 @@ SAVE_HEAT_0_CONFIG_TO_EE:
     ldi     R_LOOP, HEAT_0_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_0_CONFIG_H
     rcall   SAVE_DATA_TO_EE
-    ldi     R_LOOP, HEAT_0_CONFIG_L - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_0_CONFIG_L
     rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
@@ -1008,7 +1006,6 @@ SAVE_HEAT_0_TEMPERATURES_TO_EE:
     ldi     R_LOOP, HEAT_0_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_0_TEMPERATURE_ON
     rcall   SAVE_DATA_TO_EE
-    ldi     R_LOOP, HEAT_0_TEMPERATURE_OFF - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_0_TEMPERATURE_OFF
     rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
@@ -1016,7 +1013,6 @@ SAVE_HEAT_1_CONFIG_TO_EE:
     ldi     R_LOOP, HEAT_1_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_1_CONFIG_H
     rcall   SAVE_DATA_TO_EE
-    ldi     R_LOOP, HEAT_1_CONFIG_L - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_1_CONFIG_L
     rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
@@ -1024,7 +1020,6 @@ SAVE_HEAT_1_TEMPERATURES_TO_EE:
     ldi     R_LOOP, HEAT_1_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_1_TEMPERATURE_ON
     rcall   SAVE_DATA_TO_EE
-    ldi     R_LOOP, HEAT_1_TEMPERATURE_OFF - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_1_TEMPERATURE_OFF
     rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
@@ -1034,6 +1029,7 @@ SAVE_DATA_TO_EE:
     rjmp    PC-1
 
     out     EEARL, R_LOOP
+    inc     R_LOOP
 
     ; pobranie istniejacej wartosci
     sbi     EECR, EERE

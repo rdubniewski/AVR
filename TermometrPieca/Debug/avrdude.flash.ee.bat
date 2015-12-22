@@ -1,1 +1,1 @@
-  -p ATtiny25 -c stk200 -P lpt1 -i 200 -U lfuse:w:0xC1:m -U hfuse:w:0xDC:m  -U efuse:w:0xFF:m  -U flash:w:"C:\Users\rafal\projekty\avr\TermometrPieca\Debug\TermometrPieca.hex":i  -U eeprom:w:"C:\Users\rafal\projekty\avr\TermometrPieca\Debug\TermometrPieca.eep":i  
+  -p ATtiny25 -c stk200 -P lpt1 -i 200 -U lfuse:w:0xC1:m -U hfuse:w:0xDC:m  -U efuse:w:0xFF:m  -U flash:w:"C:\Users\rafal\projekty\git\AVR\TermometrPieca\Debug\TermometrPieca.hex":i  -U eeprom:w:"C:\Users\rafal\projekty\git\AVR\TermometrPieca\Debug\TermometrPieca.eep":i  

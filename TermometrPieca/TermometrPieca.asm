@@ -143,16 +143,13 @@ RESET_SOFT:
     rcall   LOAD_FROM_EE
     rcall   USI_I2C_INIT
 
-    ; zapis identyfikatora i wersji urzadzenia
+    ; zainicjowanie identyfikatora i wersji urzadzenia
     ldi     R_TMP_1, DEVICE_ID_DEF
     sts     DEVICE_ID, R_TMP_1
     ldi     R_TMP_1, DEVICE_VERSION_DEF
     sts     DEVICE_VERSION, R_TMP_1
 
     clr     R_CONTROL
-
-    ; pobranie ilosci czujnikow i ich romow do tabeli SENSORS w pamieci RAM
-    rcall   SEARCH_SENSORS
 
     sbr     R_CONTROL, 1 << R_CONTROL_START_MEASURE_BIT     |  \
                        1 << R_CONTROL_RESET_TIMER_BIT
@@ -265,31 +262,52 @@ I2C_CHECK_REQUEST:
     ; Identyfikator rozkazu
     lds     R_DATA, I2C_RECV_DATA_REQUEST
 
-    ; sprawdzenie ilosci argumentow
-    mov     R_TMP_1, R_I2C_BUF_POINTER_L
-    subi    R_TMP_1, I2C_RECV_DATA_ARG_0
+    ; wskaznik na argumenty z¹dania
+    ldi     R_POINTER_H, high(I2C_RECV_DATA_ARGS)
+    ldi     R_POINTER_L, low(I2C_RECV_DATA_ARGS)
+
+    ; policzenie iloœci argimentów
+    movw    R_TMP_1, R_I2C_BUF_POINTER_L
+    sub     R_TMP_1, R_POINTER_L
+    sbc     R_TMP_2, R_POINTER_H
+
+    ; rozdzielenie rozkazów zale¿nie od iloœci argumentów
     cpi     R_TMP_1, 1
     brlo    _I2C_CR_0_ARG
     breq    _I2C_CR_1_ARG
     cpi     R_TMP_1, 2
     breq    _I2C_CR_2_ARGS
 
-    rjmp    _I2C_CR_END
+    ret
 
 _I2C_CR_0_ARG:
     ; wykonanie pomiaru
     mov     R_TMP_1, R_DATA
-    sbr     R_TMP_1, I2C_REQUEST_MEASURE_MASK
+    cbr     R_TMP_1, I2C_REQUEST_MEASURE_MASK
     cpi     R_TMP_1, I2C_REQUEST_MEASURE
     breq    _I2C_CR_REQUEST_MEASURE
 
+    ; zapis do EE
+    mov     R_TMP_1, R_DATA
+    cbr     R_TMP_1, I2C_REQUEST_SAVE_EE_MASK
+    cpi     R_TMP_1, I2C_REQUEST_SAVE_EE
+    breq    _I2C_CR_REQUEST_SAVE_EE
+
+    ; szukanie czujnikow
+    cpi     R_DATA, I2C_REQUEST_SEARCH_SENSORS
+    brne    PC + 2
+    rjmp    SEARCH_SENSORS ; to jest funkcja, jej RET wyjdzie te¿ z t¹d
+
     ; Reset
     cpi     R_DATA, I2C_REQUEST_RESET
-    breq    _I2C_CR_REQUEST_RESET
-
-    rjmp    _I2C_CR_END
+    brne    PC + 2
+    rjmp    RESET_SOFT
+    
+    ret
 
 _I2C_CR_1_ARG:
+    ld      R_TMP_1, R_POINTER +
+
     ; nowy adres I2C - I2C_REQUEST_SLAVE_ADDRESS
     cpi     R_DATA, I2C_REQUEST_SLAVE_ADDRESS
     breq    _I2C_CR_SET_SLAVE_ADDRES
@@ -297,7 +315,12 @@ _I2C_CR_1_ARG:
     cpi     R_DATA, I2C_REQUEST_REPEAT_TIME
     breq    _I2C_CR_SET_REPEAT_TIME
 
+    ret
+
 _I2C_CR_2_ARGS:
+    ld      R_TMP_1, R_POINTER +
+    ld      R_TMP_2, R_POINTER +
+
     ; konfiguracja grza³ki 0
     cpi     R_DATA, I2C_REQUEST_HEAT_CONFIGURE_0
     breq    _I2C_CR_SET_HEAT_CONFIGURE_0
@@ -314,8 +337,8 @@ _I2C_CR_2_ARGS:
     cpi     R_DATA, I2C_REQUEST_HEAT_TEMPERATURES_1
     breq    _I2C_CR_SET_HEAT_TEMPERATURES_1
 
-    rjmp    _I2C_CR_END
-
+    ret
+; ¯¹dania bezargumentowe
 _I2C_CR_REQUEST_MEASURE:
     ; przeniesienie flag sterujacych pomiarem
     lds     R_TMP_1, STATE
@@ -332,62 +355,52 @@ _I2C_CR_REQUEST_MEASURE:
                      1 << I2C_REQUEST_MEASURE_STEEL_BIT
     breq    PC + 2
     sbr     R_CONTROL, 1 << R_CONTROL_START_MEASURE_BIT
-    ; zachowanie w eepromie wartosci jako domyslnej 
-    sbrc    R_DATA, I2C_REQUEST_MEASURE_STORE_DEFAULT_BIT
-    rcall   SAVE_DEFAULT_STATE_TO_EE
 
-    rjmp    _I2C_CR_END
+    ret
 
-_I2C_CR_REQUEST_RESET:
-    ; Rozkaz RESET
-    cli
-    rjmp    RESET_SOFT
+_I2C_CR_REQUEST_SAVE_EE:
+    ; zapis do eeproma tego co jest wskazane.
+    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT
+    rcall   SAVE_I2C_ADDRESS_TO_EE
+    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_SENSORS_BIT
+    rcall   SAVE_I2C_ADDRESS_TO_EE
+    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_STATE_BIT
+    rcall   SAVE_SENSORS_TO_EE
+    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_HEAT_0_BIT
+    rcall   SAVE_HEAT_0_TO_EE
+    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_HEAT_1_BIT
+    rcall   SAVE_HEAT_1_TO_EE
+    ret
 
+; ¯¹dania jednoargumentowe
 _I2C_CR_SET_SLAVE_ADDRES:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     cbr     R_TMP_1, 0x01
     mov     R_I2C_MY_ADDRESS, R_TMP_1
-    rcall   SAVE_MY_I2C_ADDRESS_TO_EE
-    rjmp    _I2C_CR_END
+    ret
 
 _I2C_CR_SET_REPEAT_TIME:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     sts     REPEAT_TIME, R_TMP_1
-    rcall   SAVE_REPEAT_TIME_TO_EE
+    ret
 
+; ¯¹dania druargumentowe
 _I2C_CR_SET_HEAT_CONFIGURE_0:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     sts     HEAT_0_CONFIG_H, R_TMP_1
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_1
-    sts     HEAT_0_CONFIG_L, R_TMP_1
-    rcall   SAVE_HEAT_0_CONFIG_TO_EE
-    rjmp    _I2C_CR_END
+    sts     HEAT_0_CONFIG_L, R_TMP_2
+    ret
 
 _I2C_CR_SET_HEAT_TEMPERATURES_0:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     sts     HEAT_0_TEMPERATURE_ON, R_TMP_1
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_1
-    sts     HEAT_0_TEMPERATURE_OFF, R_TMP_1
-    rcall   SAVE_HEAT_0_TEMPERATURES_TO_EE
-    rjmp    _I2C_CR_END
+    sts     HEAT_0_TEMPERATURE_OFF, R_TMP_2
+    ret
 
 _I2C_CR_SET_HEAT_CONFIGURE_1:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     sts     HEAT_1_CONFIG_H, R_TMP_1
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_1
-    sts     HEAT_1_CONFIG_L, R_TMP_1
-    rcall   SAVE_HEAT_1_CONFIG_TO_EE
-    rjmp    _I2C_CR_END
+    sts     HEAT_1_CONFIG_L, R_TMP_2
+    ret
 
 _I2C_CR_SET_HEAT_TEMPERATURES_1:
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
     sts     HEAT_1_TEMPERATURE_ON, R_TMP_1
-    lds     R_TMP_1, I2C_RECV_DATA_ARG_1
-    sts     HEAT_1_TEMPERATURE_OFF, R_TMP_1
-    rcall   SAVE_HEAT_1_TEMPERATURES_TO_EE
-    rjmp    _I2C_CR_END
-
-_I2C_CR_END:
+    sts     HEAT_1_TEMPERATURE_OFF, R_TMP_2
     ret
 ;----------------------------------------------------------------------------
 TIMER_START:
@@ -950,22 +963,21 @@ _LFE_LOOP:
 
     ret
 ;----------------------------------------------------------------------------
-SAVE_DEFAULT_STATE_TO_EE:
+SAVE_STATE_TO_EE:
     ldi     R_LOOP, E_DEFAULT_STATE
     lds     R_DATA, STATE
     andi    R_DATA, 1 << STATE_CONTINUE_BIT         |  \
                     1 << STATE_SORT_BIT             |  \
                     1 << STATE_SORT_DESCENDING_BIT
-    rjmp    SAVE_DATA_TO_EE
-;----------------------------------------------------------------------------
-SAVE_MY_I2C_ADDRESS_TO_EE:
-    ldi     R_LOOP, E_I2C_MY_ADDRESS
-    mov     R_DATA, R_I2C_MY_ADDRESS
-    rjmp    SAVE_DATA_TO_EE
-;----------------------------------------------------------------------------
-SAVE_REPEAT_TIME_TO_EE:
+    rcall    SAVE_DATA_TO_EE
+    ; czas powtarzania pomiaru
     ldi     R_LOOP, REPEAT_TIME - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, REPEAT_TIME
+    rjmp    SAVE_DATA_TO_EE
+;----------------------------------------------------------------------------
+SAVE_I2C_ADDRESS_TO_EE:
+    ldi     R_LOOP, E_I2C_MY_ADDRESS
+    mov     R_DATA, R_I2C_MY_ADDRESS
     rjmp    SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
 SAVE_SENSORS_TO_EE:
@@ -995,29 +1007,23 @@ _SSTE_LOOP_2:
 
     ret
 ;----------------------------------------------------------------------------
-SAVE_HEAT_0_CONFIG_TO_EE:
+SAVE_HEAT_0_TO_EE:
     ldi     R_LOOP, HEAT_0_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_0_CONFIG_H
     rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_0_CONFIG_L
-    rjmp   SAVE_DATA_TO_EE
-;----------------------------------------------------------------------------
-SAVE_HEAT_0_TEMPERATURES_TO_EE:
-    ldi     R_LOOP, HEAT_0_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_0_TEMPERATURE_ON
     rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_0_TEMPERATURE_OFF
     rjmp   SAVE_DATA_TO_EE
 ;----------------------------------------------------------------------------
-SAVE_HEAT_1_CONFIG_TO_EE:
+SAVE_HEAT_1_TO_EE:
     ldi     R_LOOP, HEAT_1_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
     lds     R_DATA, HEAT_1_CONFIG_H
     rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_1_CONFIG_L
-    rjmp   SAVE_DATA_TO_EE
-;----------------------------------------------------------------------------
-SAVE_HEAT_1_TEMPERATURES_TO_EE:
-    ldi     R_LOOP, HEAT_1_TEMPERATURE_ON - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
+    rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_1_TEMPERATURE_ON
     rcall   SAVE_DATA_TO_EE
     lds     R_DATA, HEAT_1_TEMPERATURE_OFF

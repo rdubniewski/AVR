@@ -51,19 +51,29 @@ Modified:			2012.03.29
 .equ    I2C_REQUEST_MEASURE_STEEL_BIT               = 1
 .equ    I2C_REQUEST_MEASURE_SORT_BIT                = 2
 .equ    I2C_REQUEST_MEASURE_SORT_DESCENDING_BIT     = 3
-.equ    I2C_REQUEST_MEASURE_STORE_DEFAULT_BIT       = 4
-.equ    I2C_REQUEST_MEASURE_MASK                    = 0x1F
+.equ    I2C_REQUEST_MEASURE_MASK                    = 0x0F
 
-.equ    I2C_REQUEST_HEAT                            = 0xA0
+.equ    I2C_REQUEST_HEAT                            = 0xE0
 .equ    I2C_REQUEST_HEAT_CONFIGURE_0                = 0xA0
-.equ    I2C_REQUEST_HEAT_TEMPERATURES_0             = 0xA2
-.equ    I2C_REQUEST_HEAT_CONFIGURE_1                = 0xA1
+.equ    I2C_REQUEST_HEAT_TEMPERATURES_0             = 0xA1
+.equ    I2C_REQUEST_HEAT_CONFIGURE_1                = 0xA2
 .equ    I2C_REQUEST_HEAT_TEMPERATURES_1             = 0xA3
-.equ    I2C_REQUEST_HEAT_MASK                       = 0x03
 
-.equ    I2C_REQUEST_SLAVE_ADDRESS               = 0x81
-.equ    I2C_REQUEST_REPEAT_TIME                 = 0x82
-.equ    I2C_REQUEST_RESET                       = 0x88
+.equ    I2C_REQUEST_SAVE_EE                         = 0xA0
+.equ    I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 1
+.equ    I2C_REQUEST_SAVE_EE_SENSORS_BIT             = 2
+.equ    I2C_REQUEST_SAVE_EE_STATE_BIT               = 3
+.equ    I2C_REQUEST_SAVE_EE_HEAT_0_BIT              = 4
+.equ    I2C_REQUEST_SAVE_EE_HEAT_1_BIT              = 5
+.equ    I2C_REQUEST_SAVE_EE_MASK                    = 0x1F
+
+.equ    I2C_REQUEST_REPEAT_TIME                     = 0x62
+.equ    I2C_REQUEST_SEARCH_SENSORS                  = 0x68
+
+.equ    I2C_REQUEST_SLAVE_ADDRESS                   = 0x81
+.equ    I2C_REQUEST_RESET                           = 0x88
+
+
 
 .equ    I2C_STORE_R_TMP                         = 0
 .equ    I2C_START_STORE_SREG                    = 1
@@ -88,6 +98,9 @@ Modified:			2012.03.29
 .def    R_OWIRE_MASTER_STACK_PTR                = r12
 .def    R_OWIRE_MASTER_STACK_PTR_MAX            = r13
 .def    R_SREG_INTERRUPT_STORE                  = r15
+
+; R_TMP_1, musi byæ parzysty i bezpoœrednio przed R_TMP_2,
+; wymaga tego kod
 .def    R_TMP_1                                 = r16
 .def    R_TMP_2                                 = r17
 
@@ -96,10 +109,7 @@ Modified:			2012.03.29
 .def    R_OWIRE_CRC                             = r20
 .def    R_TIMER_COUNTER                         = r21
 .def    R_TIMER_SEC                             = r22
-;.def    R_WAIT_0                                = r22
-;.def    R_WAIT_1                                = r23
 .def    R_SENSOR_NR                             = r23
-;.def    R_WAIT_2                                = r16
 .def    R_CONTROL                               = r24
 .def    R_I2C_FLAGS                             = r25
 ; rejestr X (r26:r27) jesy u¿ywany jako wskaznik przy niektorych funkcjach
@@ -197,8 +207,7 @@ I2C_SEND_DATA_END:
 
 I2C_RECV_DATA:
 I2C_RECV_DATA_REQUEST:                  .byte   1
-I2C_RECV_DATA_ARG_0:                    .byte   1
-I2C_RECV_DATA_ARG_1:                    .byte   1
+I2C_RECV_DATA_ARGS:                     .byte   2
 I2C_RECV_DATA_END:
 
 OWIRE_ROM: 

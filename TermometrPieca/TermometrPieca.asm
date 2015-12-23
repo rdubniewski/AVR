@@ -51,13 +51,9 @@ RESET_SOFT:
         ldi     R_TMP_1, @1
         sts      @0, R_TMP_1
     .endmacro
-    
+
     /* ; test sortowanie
     
-    .macro stsi
-        ldi     R_TMP_1, @1
-        sts      @0, R_TMP_1
-    .endmacro
     stsi    SENSORS_TEMPERATURE + 0, 23
     stsi    SENSORS_TEMPERATURE + 1, 45
     stsi    SENSORS_TEMPERATURE + 2, 90
@@ -105,6 +101,31 @@ RESET_SOFT:
     stsi    HEAT_1_TEMPERATURE_ON, 25
     stsi    HEAT_1_TEMPERATURE_OFF, 30
     rcall   CHECK_HEATERS
+    */
+
+    ; Testowanie ¿¹dañ i2c
+    /*
+    .macro i23_request_test
+        .if @0 >= 0
+            stsi    I2C_RECV_DATA_REQUEST, @1
+        .endif
+        .if @0 >= 1
+            stsi    (I2C_RECV_DATA_ARGS + 0), @2
+        .endif
+        .if @0 == 2
+            stsi    (I2C_RECV_DATA_ARGS + 1), @3
+        .endif
+        ldi     R_I2C_BUF_POINTER_H, high(I2C_RECV_DATA + @0 + 1)
+        ldi     R_I2C_BUF_POINTER_L, low(I2C_RECV_DATA + @0 + 1)
+        rcall   I2C_CHECK_REQUEST
+    .endmacro
+    i23_request_test    2, I2C_REQUEST_HEAT_CONFIGURE_0, 1, 2
+    i23_request_test    2, I2C_REQUEST_HEAT_TEMPERATURES_0, 3, 4
+    i23_request_test    2, I2C_REQUEST_HEAT_CONFIGURE_1, 5, 6
+    i23_request_test    2, I2C_REQUEST_HEAT_TEMPERATURES_1, 7, 8
+    i23_request_test    1, I2C_REQUEST_SLAVE_ADDRESS, 0x14
+    i23_request_test    1, I2C_REQUEST_REPEAT_TIME, 100
+    i23_request_test    0, I2C_REQUEST_SAVE_EE | 1 << I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT | 1 << I2C_REQUEST_SAVE_EE_SENSORS_BIT | 1 << I2C_REQUEST_SAVE_EE_STATE_BIT | 1 << I2C_REQUEST_SAVE_EE_HEAT_0_BIT | 1 << I2C_REQUEST_SAVE_EE_HEAT_1_BIT
     */
 
     ; zainicjowanie portow
@@ -360,15 +381,19 @@ _I2C_CR_REQUEST_MEASURE:
 
 _I2C_CR_REQUEST_SAVE_EE:
     ; zapis do eeproma tego co jest wskazane.
-    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT
+    ; R_DATA jest u¿ywane przy zapisie do eepromu,
+    ; wiêc bêdzie zbuforowany w R_HEAT_CONFIG_L który jest u¿ywany 
+    ; tylko przy wyliczeniach temperatury przy w³¹czaniu grza³ek
+    mov     R_HEAT_CONFIG_L, R_DATA
+    sbrc    R_HEAT_CONFIG_L, I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT
     rcall   SAVE_I2C_ADDRESS_TO_EE
-    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_SENSORS_BIT
-    rcall   SAVE_I2C_ADDRESS_TO_EE
-    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_STATE_BIT
+    sbrc    R_HEAT_CONFIG_L, I2C_REQUEST_SAVE_EE_SENSORS_BIT
     rcall   SAVE_SENSORS_TO_EE
-    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_HEAT_0_BIT
+    sbrc    R_HEAT_CONFIG_L, I2C_REQUEST_SAVE_EE_STATE_BIT
+    rcall   SAVE_STATE_TO_EE
+    sbrc    R_HEAT_CONFIG_L, I2C_REQUEST_SAVE_EE_HEAT_0_BIT
     rcall   SAVE_HEAT_0_TO_EE
-    sbrc    R_DATA, I2C_REQUEST_SAVE_EE_HEAT_1_BIT
+    sbrc    R_HEAT_CONFIG_L, I2C_REQUEST_SAVE_EE_HEAT_1_BIT
     rcall   SAVE_HEAT_1_TO_EE
     ret
 
@@ -382,7 +407,7 @@ _I2C_CR_SET_REPEAT_TIME:
     sts     REPEAT_TIME, R_TMP_1
     ret
 
-; ¯¹dania druargumentowe
+; ¯¹dania dwuargumentowe
 _I2C_CR_SET_HEAT_CONFIGURE_0:
     sts     HEAT_0_CONFIG_H, R_TMP_1
     sts     HEAT_0_CONFIG_L, R_TMP_2
@@ -939,20 +964,25 @@ LOAD_FROM_EE:
     sts     SENSOR_COUNT, R_TMP_1
 
     ; Przepisanie ca³ego bloku paiêci odzwierciedlonego w EE
-    ldi     R_TMP_1, E_STORAGE_MEMORY_BEGIN
+.if E_STORAGE_MEMORY_END  > E_STORAGE_MEMORY_BEGIN
+    ldi     R_TMP_1, E_STORAGE_MEMORY_BEGIN ; adres bahtu w EEPROMie
     ldi     R_TMP_2, E_STORAGE_MEMORY_END
     ldi     R_POINTER_H, high(STORAGE_IN_E_BEGIN)
     ldi     R_POINTER_L, low(STORAGE_IN_E_BEGIN)
 _LFE_LOOP:
-
+    ; odczyt z EE
     out     EEARL, R_TMP_1
     sbi     EECR, EERE
     in      R_DATA, EEDR
-
+    ; zapis do pamiêci i przejœcie na naspepny bajt
     st      R_POINTER+, R_DATA
     inc     R_TMP_1
     cp      R_TMP_1, R_TMP_2
-    brne    _LFE_LOOP
+    brlo    _LFE_LOOP
+    ; _LFE_LOOP - koniec
+.else
+    .error "E_STORAGE_MEMORY_END <= E_STORAGE_MEMORY_BEGIN - To chyba dziwne"
+.endif
 
     ; korekta E_REPEAT_TIME
     lds     R_TMP_1, REPEAT_TIME
@@ -983,52 +1013,53 @@ SAVE_I2C_ADDRESS_TO_EE:
 SAVE_SENSORS_TO_EE:
     ; zapis iloœci czujników
     ldi     R_LOOP, E_SENSOR_COUNT
-    lds     R_DATA, SENSOR_COUNT
+    lds     R_SENSOR_NR, SENSOR_COUNT
+    mov     R_DATA, R_SENSOR_NR
     rcall   SAVE_DATA_TO_EE
     ; zapis ROMów czujników
     ldi     R_POINTER_H, high(SENSOR_ROMS)
     ldi     R_POINTER_L, low(SENSOR_ROMS)
     ldi     R_LOOP, E_STORAGE_MEMORY_BEGIN + SENSOR_ROMS - STORAGE_IN_E_BEGIN
     ; pêtla zapisu poszczególnych czujników
-    lds     R_SENSOR_NR, SENSOR_COUNT
+    
 _SSTE_LOOP_1:
+    tst     R_SENSOR_NR
+    breq    _SSTE_LOOP_1_EXIT
+    dec     R_SENSOR_NR
     ; pêtla zapisu pojedynczego czujnika
     ldi     R_TMP_2, O_WIRE_ROM_STORE_SIZE
 _SSTE_LOOP_2:
     ; zapis
-    ld      R_DATA, R_POINTER+
-    rcall   SAVE_DATA_TO_EE
+    rcall   SAVE_DATA_POINTER_TO_EE
     ; warubek _SSTE_LOOP_2
     dec     R_TMP_2
     brne    _SSTE_LOOP_2
     ; warubek _SSTE_LOOP_1
-    dec     R_SENSOR_NR
-    brne    _SSTE_LOOP_1
+    rjmp    _SSTE_LOOP_1
+_SSTE_LOOP_1_EXIT:
 
     ret
 ;----------------------------------------------------------------------------
 SAVE_HEAT_0_TO_EE:
     ldi     R_LOOP, HEAT_0_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
-    lds     R_DATA, HEAT_0_CONFIG_H
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_0_CONFIG_L
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_0_TEMPERATURE_ON
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_0_TEMPERATURE_OFF
-    rjmp   SAVE_DATA_TO_EE
+    ldi     R_POINTER_H, high(HEAT_0_CONFIG_H)
+    ldi     R_POINTER_L, low(HEAT_0_CONFIG_H)
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rjmp    SAVE_DATA_POINTER_TO_EE
 ;----------------------------------------------------------------------------
 SAVE_HEAT_1_TO_EE:
     ldi     R_LOOP, HEAT_1_CONFIG_H - STORAGE_IN_E_BEGIN + E_STORAGE_MEMORY_BEGIN
-    lds     R_DATA, HEAT_1_CONFIG_H
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_1_CONFIG_L
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_1_TEMPERATURE_ON
-    rcall   SAVE_DATA_TO_EE
-    lds     R_DATA, HEAT_1_TEMPERATURE_OFF
-    rjmp   SAVE_DATA_TO_EE
+    ldi     R_POINTER_H, high(HEAT_1_CONFIG_H)
+    ldi     R_POINTER_L, low(HEAT_1_CONFIG_H)
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rcall   SAVE_DATA_POINTER_TO_EE
+    rjmp    SAVE_DATA_POINTER_TO_EE
 ;----------------------------------------------------------------------------
+SAVE_DATA_POINTER_TO_EE:
+    ld      R_DATA, R_POINTER +
 SAVE_DATA_TO_EE:
     ; poczekanie na poprzedni zapis
     sbic    EECR, EEPE

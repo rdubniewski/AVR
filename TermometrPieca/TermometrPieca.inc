@@ -54,17 +54,17 @@ Modified:			2012.03.29
 .equ    I2C_REQUEST_MEASURE_MASK                    = 0x0F
 
 .equ    I2C_REQUEST_HEAT                            = 0xE0
-.equ    I2C_REQUEST_HEAT_CONFIGURE_0                = 0xA0
-.equ    I2C_REQUEST_HEAT_TEMPERATURES_0             = 0xA1
-.equ    I2C_REQUEST_HEAT_CONFIGURE_1                = 0xA2
-.equ    I2C_REQUEST_HEAT_TEMPERATURES_1             = 0xA3
+.equ    I2C_REQUEST_HEAT_CONFIGURE_0                = 0xE0
+.equ    I2C_REQUEST_HEAT_TEMPERATURES_0             = 0xE1
+.equ    I2C_REQUEST_HEAT_CONFIGURE_1                = 0xE2
+.equ    I2C_REQUEST_HEAT_TEMPERATURES_1             = 0xE3
 
 .equ    I2C_REQUEST_SAVE_EE                         = 0xA0
-.equ    I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 1
-.equ    I2C_REQUEST_SAVE_EE_SENSORS_BIT             = 2
-.equ    I2C_REQUEST_SAVE_EE_STATE_BIT               = 3
-.equ    I2C_REQUEST_SAVE_EE_HEAT_0_BIT              = 4
-.equ    I2C_REQUEST_SAVE_EE_HEAT_1_BIT              = 5
+.equ    I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 0
+.equ    I2C_REQUEST_SAVE_EE_SENSORS_BIT             = 1
+.equ    I2C_REQUEST_SAVE_EE_STATE_BIT               = 2
+.equ    I2C_REQUEST_SAVE_EE_HEAT_0_BIT              = 3
+.equ    I2C_REQUEST_SAVE_EE_HEAT_1_BIT              = 4
 .equ    I2C_REQUEST_SAVE_EE_MASK                    = 0x1F
 
 .equ    I2C_REQUEST_REPEAT_TIME                     = 0x62

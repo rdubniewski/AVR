@@ -110,6 +110,7 @@ DEFINE_IO   MOTOR,          B, 4
 .def    R_I2C_FLAGS                             = r22
 .def    R_I2C_TMP                               = r23
 .def    R_I2C_MY_ADDRESS                        = r6
+.def    R_I2C_MY_ADDRESS_L                      = r3
 .def    R_CONTROL                               = r29
 #define R_I2C_BUF_POINTER                       Z
 #define R_I2C_BUF_POINTER_L                     ZL

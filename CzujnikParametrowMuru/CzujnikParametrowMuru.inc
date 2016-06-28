@@ -76,7 +76,7 @@
 .equ    MATH_MUL_FULL_SOFT              = 1
 
 ; obs³uga USI-I2C, nie moze uzywac rejestrow Y i Z poniewaz
-; sa uzywane podczas opliczen
+; sa uzywane podczas obliczen
 ; Rejestr kontrolny
 .def    R_CONTROL                       = r22
     .equ    R_CONTROL_I2C_READ_BYTE_BIT             = 0
@@ -86,6 +86,7 @@
 .def    R_I2C_FLAGS                     = r23
 .def    R_I2C_TMP                       = r24
 .def    R_I2C_MY_ADDRESS                = r25
+.def    R_I2C_MY_ADDRESS_L                = r3
 #define R_I2C_BUF_POINTER_L             XL
 #define R_I2C_BUF_POINTER_H             XH
 #define R_I2C_BUF_POINTER               X

@@ -11,12 +11,19 @@ Modified:			2013.10.10
 
 
 ; Wartosci rejestru FLAGS
-#define I2C_FLAGS_CHECK_SLAVE_ADDRESS   7
-#define I2C_FLAGS_SEND_DATA             6 ;
-#define I2C_FLAGS_SEND_WAIT_ACK         5
-#define I2C_FLAGS_RECV_DATA             4 ;
-#define I2C_FLAGS_SEND_CHECK_ACK        3 ;
-#define I2C_FLAGS_RECV_WAIT_DATA        2 
+#define I2C_FLAGS_CHECK_SLAVE_ADDRESS_L_W_BIT       5
+#define I2C_FLAGS_CHECK_SLAVE_ADDRESS_L_W      32
+#define I2C_FLAGS_CHECK_SLAVE_ADDRESS_L        31
+#define I2C_FLAGS_CHECK_SLAVE_ADDRESS          30       ; cpi
+#define I2C_FLAGS_SEND_DATA_BIT                     3
+#define I2C_FLAGS_SEND_DATA                     8
+#define I2C_FLAGS_SEND_WAIT_ACK                 7       ; cpi
+#define I2C_FLAGS_RECV_DATA                     6
+#define I2C_FLAGS_SEND_CHECK_ACK                5       ; cpi
+#define I2C_FLAGS_WAIT_SLAVE_ADDRESS_L_W_BIT        1
+#define I2C_FLAGS_WAIT_SLAVE_ADDRESS_L_W        2
+#define I2C_FLAGS_WAIT_SLAVE_ADDRESS_L          1
+#define I2C_FLAGS_RECV_WAIT_DATA                0       ; cpi
 
 
 #define _SFR_IO_ADDR(port) port
@@ -29,9 +36,18 @@ Modified:			2013.10.10
 // I2C_SKIP_IF_FLAG_CLEAR
 .ifdef R_I2C_FLAGS
     .macro  SET_FLAGS                
-        ldi     R_I2C_FLAGS, 1 << @0
+        ldi     R_I2C_FLAGS, @0
     .endmacro
  
+    .macro  SET_FLAGS_BLD
+        ldi     R_I2C_FLAGS, @0
+        bld     R_I2C_FLAGS, @1
+    .endmacro
+
+    .macro  FLAGS_BST
+        bst     R_I2C_FLAGS, @0
+    .endmacro
+
     .macro  CLEAR_FLAGS                     
         clr     R_I2C_FLAGS
     .endmacro
@@ -40,7 +56,7 @@ Modified:			2013.10.10
     .endmacro
     
     .macro  I2C_COMPARE_FLAGS        
-        cpi     R_I2C_FLAGS, 1 << @0
+        cpi     R_I2C_FLAGS, @0
     .endmacro
     //#define I2C_SKIP_IF_FLAG_CLEAR(_Flag)   sbrc    R_I2C_FLAGS, _Flag 
 
@@ -52,8 +68,18 @@ Modified:			2013.10.10
     .endmacro
     
     .macro  SET_FLAGS                
-        ldi     R_I2C_TMP, 1 << @0   
+        ldi     R_I2C_TMP, @0   
         SET_FLAGS_FROM_REG  R_I2C_TMP
+    .endmacro
+
+    .macro  SET_FLAGS_BLD
+        ldi     R_I2C_TMP, @0   
+        bld     R_I2C_TMP, @1   
+        SET_FLAGS_FROM_REG  R_I2C_TMP
+    .endmacro
+
+    .macro  FLAGS_BST
+        bst     R_I2C_TMP, @0
     .endmacro
 
     .macro  CLEAR_FLAGS                     
@@ -66,7 +92,7 @@ Modified:			2013.10.10
     .endmacro
 
     .macro  I2C_COMPARE_FLAGS     
-        cpi     R_I2C_TMP, 1 << @0
+        cpi     R_I2C_TMP, @0
     .endmacro
     //#define I2C_SKIP_IF_FLAG_CLEAR(_Flag)   sbic    _SFR_IO_ADDR( I2C_FLAGS_IO ), _Flag 
     
@@ -78,8 +104,18 @@ Modified:			2013.10.10
     .endmacro
 
     .macro  SET_FLAGS                
-        ldi     R_I2C_TMP, 1 << @0
+        ldi     R_I2C_TMP, @0
         SET_FLAGS_FROM_REG  R_I2C_TMP
+    .endmacro
+
+    .macro  SET_FLAGS_BLD                
+        ldi     R_I2C_TMP, @0
+        bld     R_I2C_TMP, @1
+        SET_FLAGS_FROM_REG  R_I2C_TMP
+    .endmacro
+
+    .macro  FLAGS_BST
+        bst     R_I2C_TMP, @0
     .endmacro
 
     .macro  CLEAR_FLAGS                     
@@ -92,10 +128,10 @@ Modified:			2013.10.10
     .endmacro
 
     .macro  I2C_COMPARE_FLAGS     
-        cpi     R_I2C_TMP, 1 << @0
+        cpi     R_I2C_TMP, @0
     .endmacro
     //#define I2C_SKIP_IF_FLAG_CLEAR(_Flag)   sbrc    R_I2C_TMP, _Flag
-    
+
 .endif
 
 
@@ -226,21 +262,33 @@ USI_I2C_OV:
     
     I2C_COPY_FLAGS_TO_R_TMP
     
-    I2C_COMPARE_FLAGS   I2C_FLAGS_SEND_DATA
-    breq    _I2C_OV_SEND_DATA
-    brsh    _I2C_OV_CHECK_SLAVE_ADDRESS
+    I2C_COMPARE_FLAGS   I2C_FLAGS_CHECK_SLAVE_ADDRESS
+    breq    _I2C_OV_CHECK_SLAVE_ADDRESS
+    brsh    _I2C_OV_CHECK_SLAVE_ADDRESS_L
     
-    I2C_COMPARE_FLAGS ( I2C_FLAGS_RECV_DATA )
-    breq    _I2C_OV_RECV_DATA
-    brsh    _I2C_OV_SEND_WAIT_ACK
+    I2C_COMPARE_FLAGS I2C_FLAGS_SEND_WAIT_ACK
+    breq    _I2C_OV_SEND_WAIT_ACK
+    brsh    _I2C_OV_SEND_DATA
 
-    I2C_COMPARE_FLAGS ( I2C_FLAGS_SEND_CHECK_ACK )
+    I2C_COMPARE_FLAGS I2C_FLAGS_SEND_CHECK_ACK
     breq    _I2C_OV_SEND_DATA_CHECK_ACK
+    brsh    _I2C_OV_RECV_DATA
+
+    I2C_COMPARE_FLAGS I2C_FLAGS_RECV_WAIT_DATA
+    breq    _I2C_OV_RECV_WAIT_DATA
+;----------------------------------------------------------------------------
+;----------------------------------------------------------------------------
+_I2C_OV_WAIT_SLAVE_ADDRESS_L:
+    FLAGS_BST   I2C_FLAGS_WAIT_SLAVE_ADDRESS_L_W_BIT
+    cbi     _SFR_IO_ADDR( SDA_DDR ), SDA_BIT ; SDA-wejscie
+    SET_FLAGS_BLD   I2C_FLAGS_CHECK_SLAVE_ADDRESS_L, I2C_FLAGS_CHECK_SLAVE_ADDRESS_L_W_BIT
+    ldi     R_I2C_TMP, (1<<USISIF) | (1<<USIPF)
+    rjmp    _I2C_OV_SET_USISR
 ;----------------------------------------------------------------------------
 ;----------------------------------------------------------------------------
 _I2C_OV_RECV_WAIT_DATA:
     cbi     _SFR_IO_ADDR( SDA_DDR ), SDA_BIT ; SDA-wejscie
-    SET_FLAGS(I2C_FLAGS_RECV_DATA)
+    SET_FLAGS   I2C_FLAGS_RECV_DATA
     ldi     R_I2C_TMP, (1<<USISIF) | (1<<USIPF)
     rjmp    _I2C_OV_SET_USISR
 ;----------------------------------------------------------------------------
@@ -250,9 +298,7 @@ _I2C_OV_RECV_DATA:
     SET_FLAGS ( I2C_FLAGS_RECV_WAIT_DATA )
     
     ; ustawienie wyslania ACK
-    cbi     _SFR_IO_ADDR( USIDR ), 7
-    sbi     _SFR_IO_ADDR( SDA_DDR ), SDA_BIT ; SDA-wyjscie
-    rjmp    _I2C_OV_SEND_BIT_7
+    rjmp    _I2C_OV_SEND_BIT_ACK
 ;----------------------------------------------------------------------------
 ;----------------------------------------------------------------------------
 ; Wywolany po nadejsciu ACK/NAK do MASTER (po wyslaniu bajtu do MASTERTR)
@@ -300,21 +346,29 @@ _I2C_OV_CHECK_SLAVE_ADDRESS:
     bst     R_I2C_TMP, 0
     cbr     R_I2C_TMP, 1
     
-    I2C_CHECK_SLAVE_ADDRESS    
+    I2C_CHECK_SLAVE_ADDRESS
     brne    I2C_CHECK_SLAVE_ADDRESS_NOT_CORRECT
 
+    ; sprawdzenie czy to adres 10-o bitowy
+    cbr     R_I2C_TMP, 0b00000110
+    cpi     R_I2C_TMP, 0b11110000
+    brne    I2C_CHECK_SLAVE_ADDRESS_CORRECT
+    ; adres jest 10-o bitowy
+    SET_FLAGS_BLD   I2C_FLAGS_WAIT_SLAVE_ADDRESS_L, I2C_FLAGS_WAIT_SLAVE_ADDRESS_L_W_BIT
+    rjmp    _I2C_OV_SEND_BIT_ACK
+;----------------------------------------------------------------------------
+_I2C_OV_CHECK_SLAVE_ADDRESS_L:
+    FLAGS_BST   I2C_FLAGS_CHECK_SLAVE_ADDRESS_L_W_BIT
+    in      R_I2C_TMP, _SFR_IO_ADDR( USIDR )
+    I2C_CHECK_SLAVE_ADDRESS_L
+    brne    I2C_CHECK_SLAVE_ADDRESS_NOT_CORRECT
+;----------------------------------------------------------------------------
 I2C_CHECK_SLAVE_ADDRESS_CORRECT:
-
+    I2C_SLAVE_ADDRESS_CORRECT
     ; poprawny odres
-.ifdef R_I2C_FLAGS
-    clr     R_I2C_FLAGS
-    bld     R_I2C_FLAGS, I2C_FLAGS_SEND_DATA
-.else
-    clr     R_I2C_TMP
-    bld     R_I2C_TMP, I2C_FLAGS_SEND_DATA
-    SET_FLAGS_FROM_REG  R_I2C_TMP
-.endif
+    SET_FLAGS_BLD   0, I2C_FLAGS_SEND_DATA_BIT
     ; ustawienie wyslania ACK
+_I2C_OV_SEND_BIT_ACK:
 	clr     R_I2C_TMP
     out		USIDR, R_I2C_TMP
 	;cbi     _SFR_IO_ADDR( USIDR ), 7

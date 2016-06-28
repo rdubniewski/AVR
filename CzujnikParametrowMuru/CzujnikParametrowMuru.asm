@@ -4,7 +4,6 @@
  *  Created: 2013-11-18 10:31:26
  *   Author: Rafal
  */
-
 .include    <tn44def.inc>
 .include    "CzujnikParametrowMuru.inc"
 .include    "Float_32.inc"
@@ -1020,6 +1019,12 @@ LOAD_EE:
     ; korekta gdy adres nie jest zapisany
     sbrc    R_I2C_MY_ADDRESS, 0
     ldi     R_I2C_MY_ADDRESS, I2C_MY_ADDRESS_DEFAULT
+
+    ldi     R_I2C_MY_ADDRESS, 0xF4
+    ldi     R_TMP_1, 0x37
+    mov     R_I2C_MY_ADDRESS_L, R_TMP_1
+
+
 
     ; czestotliwosc
     ldi     R_TMP_1, E_FREQUENCY

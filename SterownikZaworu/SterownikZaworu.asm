@@ -812,6 +812,11 @@ LOAD_FROM_EE:
     sbrc    R_DATA, 0
     ldi     R_DATA, I2C_MY_ADDRESS_DEFAULT
     mov     R_I2C_MY_ADDRESS, R_DATA
+    ; TEST I2C 10-bit
+    ldi     R_DATA, 0b11110000 | (high(567) << 1)
+    mov     R_I2C_MY_ADDRESS, R_DATA
+    ldi     R_DATA, low(567)
+    mov     R_I2C_MY_ADDRESS_L, R_DATA
 
     LOAD_BYTE_FROM_EE   E_SENSOR_INDEXES
     sts     SENSOR_INDEXES, R_DATA

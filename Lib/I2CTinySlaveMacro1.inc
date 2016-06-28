@@ -69,16 +69,19 @@ _ISE_ADD_START_ADDRESS:
 .macro  I2C_OV_END
 .endmacro
 ;----------------------------------------------------------------------------
-.macro I2C_CHECK_SLAVE_ADDRESS
-    cpse    R_I2C_TMP, R_I2C_MY_ADDRESS
-    rjmp    I2C_CHECK_SLAVE_ADDRESS_NOT_CORRECT
-
+.macro  I2C_CHECK_SLAVE_ADDRESS
+    cp      R_I2C_TMP, R_I2C_MY_ADDRESS
+.endmacro
+;----------------------------------------------------------------------------
+.macro  I2C_CHECK_SLAVE_ADDRESS_L
+    cp      R_I2C_TMP, R_I2C_MY_ADDRESS_L
+.endmacro
+;----------------------------------------------------------------------------
+.macro  I2C_SLAVE_ADDRESS_CORRECT
     ; ustawienie wskaznika na pobieranie danych
-    brts    I2C_CHECK_SLAVE_ADDRESS_CORRECT
+    brts    PC + 3
     ldi     R_I2C_BUF_POINTER_H, high(I2C_RECV_DATA)
     ldi     R_I2C_BUF_POINTER_L, low(I2C_RECV_DATA)
-
-    rjmp    I2C_CHECK_SLAVE_ADDRESS_CORRECT
 .endmacro
 ;----------------------------------------------------------------------------
 .macro  I2C_RECV_BYTE

@@ -1,0 +1,25 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Atmel Studio Solution File, Format Version 11.00
+Project("{18226A42-8477-4023-8AD2-40C49DA407C9}") = "TwiTestTinyMaster", "TwiTestTinyMaster.asmproj", "{B4B01712-E0CD-4ABC-8369-5FCDD71D8D87}"
+EndProject
+Project("{18226A42-8477-4023-8AD2-40C49DA407C9}") = "TwiTestTinySlave", "TwiTestTinySlave.asmproj", "{6A19D927-249D-46E2-92C5-7B9400AFB8D2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B4B01712-E0CD-4ABC-8369-5FCDD71D8D87}.Debug|AVR.ActiveCfg = Debug|AVR
+		{B4B01712-E0CD-4ABC-8369-5FCDD71D8D87}.Debug|AVR.Build.0 = Debug|AVR
+		{B4B01712-E0CD-4ABC-8369-5FCDD71D8D87}.Release|AVR.ActiveCfg = Release|AVR
+		{B4B01712-E0CD-4ABC-8369-5FCDD71D8D87}.Release|AVR.Build.0 = Release|AVR
+		{6A19D927-249D-46E2-92C5-7B9400AFB8D2}.Debug|AVR.ActiveCfg = Debug|AVR
+		{6A19D927-249D-46E2-92C5-7B9400AFB8D2}.Debug|AVR.Build.0 = Debug|AVR
+		{6A19D927-249D-46E2-92C5-7B9400AFB8D2}.Release|AVR.ActiveCfg = Release|AVR
+		{6A19D927-249D-46E2-92C5-7B9400AFB8D2}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

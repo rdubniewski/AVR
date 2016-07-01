@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Atmel Studio Solution File, Format Version 11.00
+Project("{18226A42-8477-4023-8AD2-40C49DA407C9}") = "TwiTestMegaMaster", "TwiTestMegaMaster.asmproj", "{30DCF6AB-71D0-4669-AB7E-6ECE4F3EC4C1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{30DCF6AB-71D0-4669-AB7E-6ECE4F3EC4C1}.Debug|AVR.ActiveCfg = Debug|AVR
+		{30DCF6AB-71D0-4669-AB7E-6ECE4F3EC4C1}.Debug|AVR.Build.0 = Debug|AVR
+		{30DCF6AB-71D0-4669-AB7E-6ECE4F3EC4C1}.Release|AVR.ActiveCfg = Release|AVR
+		{30DCF6AB-71D0-4669-AB7E-6ECE4F3EC4C1}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

@@ -714,9 +714,9 @@ _I2C_CR_1_ARG:
     cpi     R_DATA, I2C_REQUEST_SET_MOTOR_PWM_COUNTER_MAX
     breq    _I2C_CR_SET_MOTOR_PWM_COUNTER_MAX
 
-    ; nowy adres I2C - I2C_REQUEST_SLAVE_ADDRESS
+    ; nowy adres I2C - I2C_REQUEST_SLAVE_ADDRESS, 7 lub 10 bit
     cpi     R_DATA, I2C_REQUEST_SLAVE_ADDRESS
-    breq    _I2C_CR_SET_SLAVE_ADDRES
+    breq    _I2C_CR_SET_SLAVE_ADDRES_H
 
     ; indeksy czujnikow.
     cpi     R_DATA, I2C_REQUEST_SET_SENSOR_INDEXES
@@ -729,6 +729,10 @@ _I2C_CR_2_ARGS:
     ; ustawienie maksymalnego czasu pracy silnika - I2C_REQUEST_SET_MOTOR_ENABLED_TIME
     cpi     R_DATA, I2C_REQUEST_SET_MOTOR_ENABLED_TIME
     breq    _I2C_CR_SET_MOTOR_ENABLED_TIME
+
+    ; nowy adres I2C - I2C_REQUEST_SLAVE_ADDRESS, 10 bit
+    cpi     R_DATA, I2C_REQUEST_SLAVE_ADDRESS
+    breq    _I2C_CR_SET_SLAVE_ADDRES_L
 
     rjmp    _I2C_CR_END
 
@@ -767,11 +771,29 @@ _I2C_CR_SET_MOTOR_PWM_COUNTER_MAX:
     sts     MOTOR_PWM_COUNTER_MAX, R_TMP_1
     rjmp    _I2C_CR_END
 
-_I2C_CR_SET_SLAVE_ADDRES:
+_I2C_CR_SET_SLAVE_ADDRES_H:
     lds     R_TMP_1, I2C_RECV_DATA_ARG_0
-    cbr     R_TMP_1, 0x01
+    cpi     R_TMP_1, 0b1111000
+    brsh    _I2C_CR_END ; koniec gdy adres jest zaw ysoki - zarezerwowany
+    cpi     R_TMP_1, 0b1000
+    brlo    _I2C_CR_END ; koniec gdy adres jest za niski - zarezerwowany
+    lsl     R_TMP_1
+    ; adres jest poprawny jak na 7 bitowy
     mov     R_I2C_MY_ADDRESS, R_TMP_1
 //    rcall   SAVE_MY_I2C_ADDRESS_TO_EE
+    rjmp    _I2C_CR_END
+
+_I2C_CR_SET_SLAVE_ADDRES_L:
+    lds     R_TMP_1, I2C_RECV_DATA_ARG_0
+    lds     R_TMP_2, I2C_RECV_DATA_ARG_1
+    cpi     R_TMP_1, high(1024)
+    brsh    _I2C_CR_END ; koniec gdy niepoprawny adres
+    ; sformatowanie adresu do bezposredniego porównania
+    lsl     R_TMP_1
+    sbr     R_TMP_1, 0b11110000
+    mov     R_I2C_MY_ADDRESS, R_TMP_1
+    mov     R_I2C_MY_ADDRESS_L, R_TMP_2
+
     rjmp    _I2C_CR_END
 
 _I2C_CR_SET_SENSOR_INDEXES:
@@ -812,11 +834,16 @@ LOAD_FROM_EE:
     sbrc    R_DATA, 0
     ldi     R_DATA, I2C_MY_ADDRESS_DEFAULT
     mov     R_I2C_MY_ADDRESS, R_DATA
-    ; TEST I2C 10-bit
-    ldi     R_DATA, 0b11110000 | (high(567) << 1)
-    mov     R_I2C_MY_ADDRESS, R_DATA
-    ldi     R_DATA, low(567)
+    LOAD_BYTE_FROM_EE   E_I2C_MY_ADDRESS
     mov     R_I2C_MY_ADDRESS_L, R_DATA
+    ; TEST I2C 7-bit
+    ;ldi     R_DATA, 0x32
+    ;mov     R_I2C_MY_ADDRESS, R_DATA
+    ; TEST I2C 10-bit
+    ;ldi     R_DATA, 0b11110000 | (high(567) << 1)
+    ;mov     R_I2C_MY_ADDRESS, R_DATA
+    ;ldi     R_DATA, low(567)
+    ;mov     R_I2C_MY_ADDRESS_L, R_DATA
 
     LOAD_BYTE_FROM_EE   E_SENSOR_INDEXES
     sts     SENSOR_INDEXES, R_DATA
@@ -920,6 +947,7 @@ _STEF_END:
 SAVE_TO_EE:
     ; Adres I2C
     SAVE_REG_TO_EE  E_I2C_MY_ADDRESS, R_I2C_MY_ADDRESS
+    SAVE_REG_TO_EE  E_I2C_MY_ADDRESS_L, R_I2C_MY_ADDRESS_L
     SAVE_BYTE_TO_EE SENSOR_INDEXES
     SAVE_BYTE_TO_EE TEMPERATURE_REQUEST
     SAVE_BYTE_TO_EE TEMPERATURE_IN_MAX

@@ -9,6 +9,7 @@
 .eseg
 
 E_I2C_MY_ADDRESS:                       .db I2C_MY_ADDRESS_DEFAULT
+E_I2C_MY_ADDRESS_L:                     .db 0
 E_SENSOR_INDEXES:                       .db 0xF0
 E_TEMPERATURE_REQUEST:                  .db TEMPERATURE_REQUEST_DEFAULT
 E_TEMPERATURE_IN_MAX:                   .db TEMPERATURE_IN_MAX_DEFAULT

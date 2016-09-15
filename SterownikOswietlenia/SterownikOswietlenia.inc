@@ -15,25 +15,27 @@
 
 .equ    I2C_REQUEST_SLAVE_ADDRESS                   = 0x81
 .equ    I2C_REQUEST_SAVE_EE                         = 0xA0 ; bity 3:0 okreslaja to co zostanie zapisane
-.equ        I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 0x00
-.equ        I2C_REQUEST_SAVE_EE_OSCCAL_VALUE_BIT        = 0x01
-.equ        I2C_REQUEST_SAVE_EE_POINT_COUNT_BIT         = 0x02
-.equ        I2C_REQUEST_SAVE_EE_SECTIONS_BIT            = 0x03
-.equ        I2C_REQUEST_SAVE_EE_MASK                    = 0xF0
-.equ    I2C_REQUEST_SET_POINT_COUNT                 = 0xC1
-.equ    I2C_REQUEST_SET_SECTION_CONTROL             = 0xC4 ; bity 1:0 okreslaja numer sekcji
-.equ        I2C_REQUEST_SET_SECTION_CONTROL_MASK        = ~0x03
-.equ    I2C_REQUEST_SET_SECTION_DATA                = 0xC8 ; bity 1:0 okreslaja numer sekcji
-.equ        I2C_REQUEST_SET_SECTION_DATA_MASK           = ~0x03
+.equ        I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 0
+.equ        I2C_REQUEST_SAVE_EE_POINT_COUNT_BIT         = 1
+.equ        I2C_REQUEST_SAVE_EE_SECTIONS_BIT            = 2
+;.equ        I2C_REQUEST_SAVE_EE_OSCCAL_VALUE_BIT        = 3
+.equ        I2C_REQUEST_SAVE_EE_MASK                    = 0xF8
+
+.equ    I2C_REQUEST_SET_GROUP_SIZE                  = 0xC1
+
+.equ    I2C_REQUEST_ADD_SECTION                     = 0xC2
+
+.equ    I2C_REQUEST_SET_SECTION_CONTROL             = 0xC4
+
+.equ    I2C_REQUEST_SET_SECTION_DATA                = 0xC8
+
 .equ    I2C_REQUEST_RESET                           = 0x88
 
 
-.equ    LED_DATA_COUNT_MAX              = 32
-.equ    BUTTON_COUNT_MAX                = 9
+.equ    LED_DATA_COUNT_MAX              = 150
+.equ    BUTTON_COUNT_MAX                = 25
 
 ;------------ !!!!!!!!!!!!!!!!!!!!1---------------- 
-; r0 - r5 jest zajete na wynik mnozenia dla RGB.
-;
 .def    R_TIMER_CHECK_BUTTONS_COUNTER   = r9
 .def    R_TIMER_SEND_LED_DATA_COUNTER   = r10
 .def    R_I2C_TWCR_EA1                  = r11
@@ -95,94 +97,22 @@
 .endmacro
 
 ;DEFINE_IO   LED_CLK,        B, 0
-;DEFINE_IO   LED_DATA,       B, 1
+DEFINE_IO   LED_DATA,       C, 7
 DEFINE_IO   TWI_SCL,        C, 5
 DEFINE_IO   TWI_SDA,        C, 4
-DEFINE_IO   BUTTON_H_0,     B, 0
-DEFINE_IO   BUTTON_H_1,     B, 1
-DEFINE_IO   BUTTON_H_2,     B, 2
-DEFINE_IO   BUTTON_V_0,     B, 4
-DEFINE_IO   BUTTON_V_1,     B, 6
-DEFINE_IO   BUTTON_V_2,     B, 7
-DEFINE_IO   LED_POWER,      D, 0
-DEFINE_IO   LED_SPI_MOSI,   B, 3
-DEFINE_IO   LED_SPI_SCK,    B, 5
+DEFINE_IO   BUTTON_H_0,     A, 0
+DEFINE_IO   BUTTON_H_1,     A, 1
+DEFINE_IO   BUTTON_H_2,     A, 2
+DEFINE_IO   BUTTON_V_0,     A, 4
+DEFINE_IO   BUTTON_V_1,     A, 5
+DEFINE_IO   BUTTON_V_2,     A, 6
+DEFINE_IO   LED_POWER,      C, 1
+;DEFINE_IO   LED_SPI_MOSI,   B, 3
+;DEFINE_IO   LED_SPI_SCK,    B, 5
 
-.dseg
-
-.dseg
-
-; licznik co ile taktow timera bedzie zmiana wartosci danych LED
-TIMER_SEND_LED_DATA_COUNT:              .byte   1
-TIMER_CHECK_BUTTONS_COUNT:              .byte   1
-
-I2C_SEND_DATA:
-DEVICE_TYPE:                            .byte   1
-DEVICE_VERSION:                         .byte   1
-
-I2C_SEND_DATA_DEFAULT_START:
-
-;LED_R:                                  .byte   1
-;LED_G:                                  .byte   1
-;LED_B:                                  .byte   1
-BUTTON_STATE_COUNTER:                   .byte   BUTTON_COUNT_MAX * 2
-
-LED_DATA_COUNT:                         .byte   1
-; Obliczone wartosci 
-LED_DATA_OUT:                           .byte   LED_DATA_COUNT_MAX
-
-LED_SECTIONS:
-LED_SECTION_0:
-LED_SECTION_0_STATE_H:                  .byte   1
-LED_SECTION_0_STATE_L:                  .byte   1
-LED_SECTION_0_DATA_SKIP:                .byte   1
-LED_SECTION_0_COUNTER:
-LED_SECTION_0_COUNTER_H:                .byte   1
-LED_SECTION_0_COUNTER_L:                .byte   1
-LED_SECTION_0_DATA:                     .byte   LED_DATA_COUNT_MAX
-
-LED_SECTION_1:
-LED_SECTION_1_STATE_H:                  .byte   1
-LED_SECTION_1_STATE_L:                  .byte   1
-LED_SECTION_1_DATA_SKIP:                .byte   1
-LED_SECTION_1_COUNTER:
-LED_SECTION_1_COUNTER_H:                .byte   1
-LED_SECTION_1_COUNTER_L:                .byte   1
-LED_SECTION_1_DATA:                     .byte   LED_DATA_COUNT_MAX
-
-LED_SECTION_2:
-LED_SECTION_2_STATE_H:                  .byte   1
-LED_SECTION_2_STATE_L:                  .byte   1
-LED_SECTION_2_DATA_SKIP:                .byte   1
-LED_SECTION_2_COUNTER:
-LED_SECTION_2_COUNTER_H:                .byte   1
-LED_SECTION_2_COUNTER_L:                .byte   1
-LED_SECTION_2_DATA:                     .byte   LED_DATA_COUNT_MAX
-
-LED_SECTIONS_END:
-
-.equ    LED_SECTION_STATE_H_STOP_INCREMENT_BIT      = 7
-
-OSCCAL_VALUE:                           .byte   1
-I2C_SEND_DATA_END:
-.equ    I2C_SEND_DATA_SIZE              = I2C_SEND_DATA_END - I2C_SEND_DATA
-
-I2C_RECV_DATA:
-I2C_RECV_DATA_REQUEST:                  .byte   1
-I2C_RECV_DATA_ARGS:                     .byte   LED_DATA_COUNT_MAX
-I2C_RECV_DATA_END:
-.equ    I2C_RECV_DATA_SIZE              = I2C_RECV_DATA_END - I2C_RECV_DATA
 
 
 .equ    BUTTON_STATE_ON_BIT             = 3
 
-.equ    LED_SECTIONS_SIZE               = LED_SECTIONS_END - LED_SECTIONS
-
-.eseg
-E_I2C_MY_ADDRESS:                       .byte   1
-E_I2C_MY_ADDRESS_L:                     .byte   1
-E_OSCCAL_VALUE:                         .byte   1
-E_LED_DATA_COUNT:                       .byte   1
-E_LED_SECTIONS:                         .byte   LED_SECTIONS_SIZE
 
 #endif

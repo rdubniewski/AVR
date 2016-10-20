@@ -43,6 +43,7 @@ LED_SECTION_0_DATA:                     .byte   1
 LED_SECTIONS_NEXT_DATA:                 .byte   500
 LED_SECTIONS_END:
 
+.equ    LED_SECTION_HEADER_SIZE                     = LED_SECTION_0_DATA - LED_SECTION_0
 .equ    LED_SECTION_STATE_H_STOP_INCREMENT_BIT      = 7
 
 I2C_SEND_DATA_END:

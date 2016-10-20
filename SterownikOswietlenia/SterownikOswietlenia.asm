@@ -34,6 +34,12 @@
     ldi     @0L, low(@1)
 .endmacro
 
+.macro  CPI16
+    ldi     R_TMP_1, high(@1)
+    cpi     @0L, low(@1)
+    cpc     @0H, R_TMP_1
+.endmacro
+
 ; Wait na timerze 0 8 bit - attiny24-44-84
 .macro  START_TIMER_0_TICKS_T24_T44_T84
     .set    TICKS   = (@0) - 9
@@ -338,12 +344,12 @@ I2C_CHECK_REQUEST:
     lds     R_DATA, I2C_RECV_DATA_REQUEST
 
     ; sprawdzenie ilosci argumentow
-    mov     R_TMP_1, R_I2C_BUF_POINTER_L
+    mov     R_LOOP, R_I2C_BUF_POINTER_L
     mov     R_TMP_2, R_I2C_BUF_POINTER_H
     ldi     R_TMP_3, high(I2C_RECV_DATA_ARGS)
-    subi    R_TMP_1, low(I2C_RECV_DATA_ARGS)
+    subi    R_LOOP, low(I2C_RECV_DATA_ARGS)
     sbc     R_TMP_2, R_TMP_3
-    cpi     R_TMP_1, 1
+    cpi     R_LOOP, 1
     brlo    _I2C_CR_0_ARG
     breq    _I2C_CR_1_ARG
     rjmp    _I2C_CR_N_ARGS
@@ -359,6 +365,10 @@ _I2C_CR_0_ARG:
     cpi     R_DATA, I2C_REQUEST_RESET
     breq    _I2C_CR_REQUEST_RESET
     
+    cpi     R_DATA, I2C_REQUEST_ADD_SECTION
+    brne    PC + 2
+    rjmp    _I2C_CR_ADD_SECTION
+
     rjmp    _I2C_CR_END
 
 _I2C_CR_1_ARG:
@@ -386,6 +396,15 @@ _I2C_CR_N_ARGS:
     brne    PC + 2    
     rjmp    _I2C_CR_SET_SECTION_DATA
 
+    cpi     R_DATA, I2C_REQUEST_DELETE_SECTION
+    brne    PC + 2    
+    rjmp    _I2C_CR_DELETE_SECTION
+    
+    cpi     R_DATA, I2C_REQUEST_CLEAR_SECTIONS
+    brne    PC + 2    
+    rjmp    _I2C_CR_CLEAR_SECTIONS
+
+
     rjmp    _I2C_CR_END
 
 
@@ -393,6 +412,10 @@ _I2C_CR_REQUEST_SAVE_EE:
     mov     R_TMP_3, R_DATA
     andi    R_TMP_3, ~I2C_REQUEST_SAVE_EE_MASK
     rcall   SAVE_TO_EE
+    brcc    _I2C_CR_REQUEST_SAVE_EE_CORRECT
+    ; jakiœ b³¹d
+    rjmp    _I2C_CR_ERROR
+_I2C_CR_REQUEST_SAVE_EE_CORRECT:
     rjmp    _I2C_CR_END
 
 _I2C_CR_REQUEST_RESET:
@@ -403,7 +426,7 @@ _I2C_CR_REQUEST_RESET:
 
 _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE:
     ; sprawdzenie iloœci argumentów - musz¹ byæ 2
-    cpi     R_TMP_1, 2
+    cpi     R_LOOP, 2
     breq    PC + 2
     rjmp    _I2C_CR_END
     ; 2 argumenty: 0 - numer grupy, 1 rozmiar grupy
@@ -412,8 +435,8 @@ _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE:
     cpi     R_DATA, 8
     brlo    _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE_GROUP_CORRECT
     ; b³êdna grupa
-    STSI8   I2C_REQUEST_RESULT, 0x1 << 1 ; b³êdny umer grupy
-    rjmp    _I2C_CR_END
+    ldi     R_DATA, 0x1 << 1 ; b³êdny umer grupy
+    rjmp    _I2C_CR_ERROR
 _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE_GROUP_CORRECT:
     ; poprawny numer grupy, Ustawienie adresu w tablicy LED_GROUP_LEN_TAB
     LDI16   R_POINTER_B, LED_GROUP_LEN_TAB ; adres idetacji po ca³ej tablicy
@@ -439,13 +462,12 @@ _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE_CHECK_SIZE_LOOP:
     ; przywrócenie poprzedniej wartoœci
     st      R_POINTER_A, R_TMP_2
     ; b³êdny rozmiar sumaryczny grupy
-    STSI8   I2C_REQUEST_RESULT, 0x2 << 1 ; b³êdna suma grup
-    rjmp    _I2C_CR_END
+    ldi     R_DATA, 0x2 << 1 ; b³êdna suma grup
+    rjmp    _I2C_CR_ERROR
 _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE_SIZE_CORRECT:
     dec     R_LOOP
     brne    _I2C_CR_I2C_REQUEST_SET_GROUP_SIZE_CHECK_SIZE_LOOP
     ; poprzwne zakoczenie
-    STSI8   I2C_REQUEST_RESULT, 0x0 << 1 ; jest OK
     rjmp    _I2C_CR_END
 
 
@@ -466,32 +488,84 @@ _I2C_CR_SET_SLAVE_ADDRES_L:
     lds     R_TMP_1, I2C_RECV_DATA_ARGS + 0
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 1
     cpi     R_TMP_1, high(1024)
-    brsh    _I2C_CR_END ; koniec gdy niepoprawny adres
+    brsh    _I2C_CR_SET_SLAVE_ADDRES_L_END ; koniec gdy niepoprawny adres
     ; sformatowanie adresu do bezposredniego porównania
     lsl     R_TMP_1
     sbr     R_TMP_1, 0b11110000
     out     TWAR, R_TMP_1
     mov     R_I2C_MY_ADDRESS_L, R_TMP_2
+_I2C_CR_SET_SLAVE_ADDRES_L_END:
     rjmp    _I2C_CR_END
 
 
+_I2C_CR_ADD_SECTION:
+    ; sprawdzenie czy jest miejsce do wstawienia
+    lds     R_DATA, LED_SECTION_COUNT
+    cpi     R_DATA, LED_SECTION_COUNT_MAX
+    brlo    _I2C_CR_ADD_SECTION_ADD
+    ; bl³d - nie ma miejsca do wstawienia sekcji
+    ldi     R_DATA, 0x5 << 1 ; przekroczenie maksymalnej ilosci sekcji
+    rjmp    _I2C_CR_ERROR
+_I2C_CR_ADD_SECTION_ADD:
+    ; zwiêkszenie iloœci sekcji
+    inc     R_DATA
+    sts     LED_SECTION_COUNT, R_DATA
+    ; pobranie wskaŸnika sekcji
+    dec     R_DATA
+    rcall   GET_SECTION_POINTER_A
+    brcs    _I2C_CR_ADD_SECTION_ERROR
+    ; zainicjowanie sekcji pustymi danymi
+    std     R_POINTER_A + LED_SECTION_0_GROUP - LED_SECTION_0, R_FF
+    std     R_POINTER_A + LED_SECTION_0_STATE_3 - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_STATE_2 - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_STATE_1 - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_STATE_0 - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_DATA_SKIP - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_COUNTER_H - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_COUNTER_L - LED_SECTION_0, R_ZERO
+    std     R_POINTER_A + LED_SECTION_0_RESERVED_3 - LED_SECTION_0, R_FF
+    std     R_POINTER_A + LED_SECTION_0_RESERVED_2 - LED_SECTION_0, R_FF
+    std     R_POINTER_A + LED_SECTION_0_RESERVED_1 - LED_SECTION_0, R_FF
+    std     R_POINTER_A + LED_SECTION_0_RESERVED_0 - LED_SECTION_0, R_FF
+    ; koniec
+    rjmp    _I2C_CR_END
+_I2C_CR_ADD_SECTION_ERROR:
+    ; przywrocenie poprzednij iloœci sekcji
+    lds     R_DATA, LED_SECTION_COUNT
+    dec     R_DATA
+    sts     LED_SECTION_COUNT, R_DATA
+    ; sygnalizacja b³êdu
+    ldi     R_DATA, 0x9 << 1 ; Nie ma miejsca w buorze
+    rjmp    _I2C_CR_ERROR
+        
 _I2C_CR_SET_SECTION_CONTROL:
-    ; Indeks grupy
+    ; Indeks sekcji
     lds     R_DATA, I2C_RECV_DATA_ARGS + 0
     rcall   GET_SECTION_POINTER_A
     brcc    _I2C_CR_SET_SECTION_CONTROL_SECTION_CORRECT
     ; b³êdny indeks sekcji
-    STSI8   I2C_REQUEST_RESULT, 0x3 << 1 ; b³êdny indeks sekcji
-    rjmp    _I2C_CR_END
+    ldi     R_DATA, 0x3 << 1 ; b³êdny indeks sekcji
+    rjmp    _I2C_CR_ERROR
 _I2C_CR_SET_SECTION_CONTROL_SECTION_CORRECT:
     ; zapis 1 bajtu grupy
-    cpi     R_TMP_1, 2
-    brlo    _I2C_CR_END
+    cpi     R_LOOP, 2
+    brsh    PC + 2
+    rjmp    _I2C_CR_END
+    ; 
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 1
+    ; sprawdzenie czy indeks grupy jest poprawy
+    cpi     R_TMP_2, 8
+    brlo    _I2C_CR_SET_SECTION_CONTROL_GROUP_CORRECT
+    ; b³¹d, niepoprawny indeks grupy
+    ldi     R_DATA, 0x7 << 1 ; b³êdny indeks sekcji
+    rjmp    _I2C_CR_ERROR
+_I2C_CR_SET_SECTION_CONTROL_GROUP_CORRECT:
     std     R_POINTER_A + LED_SECTION_0_GROUP - LED_SECTION_0, R_TMP_2
     ; zapis 3 bajtów konfiguracji
-    cpi     R_TMP_1, 6
-    brlo    _I2C_CR_END
+    cpi     R_LOOP, 6
+    brsh    PC + 2
+    rjmp    _I2C_CR_END
+    ;
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 2
     std     R_POINTER_A + LED_SECTION_0_STATE_3 - LED_SECTION_0, R_TMP_2
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 3
@@ -501,12 +575,12 @@ _I2C_CR_SET_SECTION_CONTROL_SECTION_CORRECT:
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 5
     std     R_POINTER_A + LED_SECTION_0_STATE_0 - LED_SECTION_0, R_TMP_2
     ; zapis 1 bajtu skoku licznika
-    cpi     R_TMP_1, 7
-    brlo    _I2C_CR_END
+    cpi     R_LOOP, 7
+    brsh    PC + 2
+    rjmp    _I2C_CR_END
     lds     R_TMP_2, I2C_RECV_DATA_ARGS + 6
     std     R_POINTER_A + LED_SECTION_0_DATA_SKIP - LED_SECTION_0, R_TMP_2    
     ; poprzwne zakoczenie
-    STSI8   I2C_REQUEST_RESULT, 0x0 << 1 ; jest OK
     rjmp    _I2C_CR_END
 
 
@@ -522,9 +596,9 @@ _I2C_CR_SET_SECTION_DATA:
     add     R_POINTER_B_L, R_DATA
     adc     R_POINTER_B_H, R_ZERO
     ; ilosc LED w grupie
-    ld      R_LOOP, R_POINTER_B
+    ld      R_TMP_1, R_POINTER_B
     ; sprawdzenie czy ilosc LED w grupie odpowiada ilosci odebranych bajtów
-    dec     R_TMP_1 ; ilosc odebranych danych powinna byæ o jeden bajt wiêksza
+    dec     R_LOOP  ; ilosc odebranych danych powinna byæ o jeden bajt wiêksza
                     ; przez bajt indeksu sekcji.
     cp      R_LOOP, R_TMP_1
     brne    _I2C_CR_END
@@ -533,20 +607,110 @@ _I2C_CR_SET_SECTION_DATA:
     ; ustawieie wskaznika B na obszarodebranych danych I2C
     LDI16   R_POINTER_B, (I2C_RECV_DATA_ARGS + 1)
 _I2C_CR_SET_SECTION_DATA_LOOP:
+    tst     R_LOOP
+    breq    _I2C_CR_END
     dec     R_LOOP
-    brmi   _I2C_CR_END
-    ld      R_TMP_2, R_POINTER_B+
-    st      R_POINTER_A+, R_TMP_2
+    ld      R_TMP_1, R_POINTER_B+
+    st      R_POINTER_A+, R_TMP_1
     rjmp    _I2C_CR_SET_SECTION_DATA_LOOP
 
+_I2C_CR_DELETE_SECTION:
+    ; Indeks sekcji
+    lds     R_DATA, I2C_RECV_DATA_ARGS + 0
+    rcall   GET_SECTION_POINTER_A
+    brcc    _I2C_CR_SET_SECTION_CONTROL_SECTION_CORRECT
+    ; b³êdny indeks sekcji
+    ldi     R_DATA, 0x3 << 1 ; b³êdny indeks sekcji
+    rjmp    _I2C_CR_ERROR
+    ; poprawny indeks sekcji
+        ; pobranie nsatêpnej sekcji do indeksu B
+    ; grupa w sekcji
+    ldd     R_TMP_1, R_POINTER_A + LED_SECTION_0_GROUP - LED_SECTION_0
+    cpi     R_TMP_1, 8
+    brsh    _I2C_CR_DELETE_SECTION_MOVE_LOOP_END
+    ; poprawny indeks grupy
+    ; pobranie ilosci ledow w sekcji
+    LDI16   R_POINTER_B, LED_GROUP_LEN_TAB
+    add     R_POINTER_B_L, R_TMP_1
+    adc     R_POINTER_B_H, R_ZERO
+    ld      R_TMP_1, R_POINTER_B
+    ; przesuniêcie wskaŸnika na nastêp¹ sekcjê
+    movw    R_POINTER_B, R_POINTER_A
+    adiw    R_POINTER_B, LED_SECTION_0_DATA - LED_SECTION_0
+    add     R_POINTER_B_L, R_TMP_1
+    adc     R_POINTER_B_H, R_ZERO
+    ; przesuniêcie kolejnych sekcji w miejsce usuniêtej
+    ldi     R_TMP_2, high(LED_SECTIONS_END) ; starszy bajt adresu
+                                            ; do porównania koñca obszaru
+_I2C_CR_DELETE_SECTION_MOVE_LOOP:
+    ; sprzewdzenie koñca wskaŸnika B
+    cpi     R_POINTER_B_L, low(LED_SECTIONS_END)
+    cpc     R_POINTER_B_H, R_TMP_2
+    brsh    _I2C_CR_DELETE_SECTION_MOVE_LOOP_END
+    ; skopiowanie
+    ld      R_TMP_1, R_POINTER_B +
+    st      R_POINTER_A +, R_TMP_1
+    rjmp    _I2C_CR_DELETE_SECTION_MOVE_LOOP
+_I2C_CR_DELETE_SECTION_MOVE_LOOP_END:
+    ; kasowanie obszaru na koñcu
+_I2C_CR_DELETE_SECTION_CLEAR_LOOP:
+    ; sprzewdzenie koñca wskaŸnika A
+    cpi     R_POINTER_A_L, low(LED_SECTIONS_END)
+    cpc     R_POINTER_A_H, R_TMP_2
+    brsh    _I2C_CR_DELETE_SECTION_CLEAR_LOOP_END
+    ; kasowanie
+    st      R_POINTER_A +, R_FF
+    rjmp    _I2C_CR_DELETE_SECTION_CLEAR_LOOP
+_I2C_CR_DELETE_SECTION_CLEAR_LOOP_END:
+    ; zmniejszenie iloœci sekcji
+    lds     R_TMP_1, LED_SECTION_COUNT
+    dec     R_TMP_1
+    sts     LED_SECTION_COUNT, R_TMP_1
+    ; koniec _I2C_CR_DELETE_SECTION
+    rjmp    _I2C_CR_END
+    
+    
+_I2C_CR_CLEAR_SECTIONS:
+    LDI16   R_POINTER_A, LED_SECTION_0
+    ldi     R_TMP_2, high(LED_SECTIONS_END) ; starszy bajt adresu
+                                            ; do porównania koñca obszaru
+_I2C_CR_CLEAR_SECTIONS_LOOP:
+    ; sprzewdzenie koñca wskaŸnika A
+    cpi     R_POINTER_A_L, low(LED_SECTIONS_END)
+    cpc     R_POINTER_A_H, R_TMP_2
+    brsh    _I2C_CR_CLEAR_SECTIONS_LOOP_END
+    ; kasowanie
+    st      R_POINTER_A +, R_FF
+    rjmp    _I2C_CR_CLEAR_SECTIONS_LOOP
+_I2C_CR_CLEAR_SECTIONS_LOOP_END:
+    ; wyzerowanie iloœci sekcji
+    sts     LED_SECTION_COUNT, R_ZERO
+    ; koniec _I2C_CR_CLEAR_SECTIONS
+    rjmp    _I2C_CR_END
+
 _I2C_CR_END:
+    ldi     R_DATA, 0
+_I2C_CR_ERROR:
+    sts     I2C_REQUEST_RESULT, R_DATA
+    
     ret
 ;----------------------------------------------------------------------------
 ; R_DATA - indeks sekcji
 ; Ustawiona flaga TFLAGS-C oznacza b³¹d
 GET_SECTION_POINTER_A:
     LDI16   R_POINTER_A, LED_SECTION_0
+    ; sprawdzenie czy indeks jest wiêkszy od zapisanych iloœci sekcji
+    lds     R_TMP_1, LED_SECTION_COUNT
+    cp      R_DATA, R_TMP_1
+    brsh    _SNTPA_ERROR
+    ; indeks sekcji jest poprawny
 _SNTPA_LOOP:
+    ; sprawdzenie czy adres nie wykracza poza przydzielony obszar
+    ldi     R_TMP_1, high(LED_SECTIONS_END - LED_SECTION_HEADER_SIZE)
+    cpi     R_POINTER_A_L, low(LED_SECTIONS_END - LED_SECTION_HEADER_SIZE)
+    cpc     R_POINTER_A_H, R_TMP_1
+    brsh    _SNTPA_ERROR
+    ; poprawny adres
     ; warunek
     tst     R_DATA
     breq    _SNTPA_LOOP_END
@@ -555,7 +719,7 @@ _SNTPA_LOOP:
     ldd     R_TMP_1, R_POINTER_A + LED_SECTION_0_GROUP - LED_SECTION_0
     cpi     R_TMP_1, 8
     brsh    _SNTPA_ERROR
-    ; poprawny indeks sekcji
+    ; poprawny indeks grupy
     ; pobranie ilosci ledow w sekcji
     LDI16   R_POINTER_B, LED_GROUP_LEN_TAB
     add     R_POINTER_B_L, R_TMP_1
@@ -950,8 +1114,8 @@ CALCULATE_LED_DATA_POINTER_B:
     ldi     R_TMP_3, 1 << LED_SECTION_STATE_H_STOP_INCREMENT_BIT
 
     ; pobranie licznika sekcji
-    ldd     r1, R_POINTER_B + (LED_SECTION_0_COUNTER_H - LED_SECTION_0)
-    ldd     r0, R_POINTER_B + (LED_SECTION_0_COUNTER_L - LED_SECTION_0)
+    ldd     r3, R_POINTER_B + (LED_SECTION_0_COUNTER_H - LED_SECTION_0)
+    ldd     r2, R_POINTER_B + (LED_SECTION_0_COUNTER_L - LED_SECTION_0)
 
     ; przesuniecie wskaznika na tablice danych LED
     adiw    R_POINTER_B_L, LED_SECTION_0_DATA - LED_SECTION_0
@@ -978,22 +1142,16 @@ _CLDP_LOOP:
     cpi     R_TMP_1, 255
     breq    _CLDP_LOOP_EXCLUDE
     ; swieci
-    ; pomno¿enie wartosci przez 8, wydluza to opoznienie w zaswieceniu
-    clr     R_TMP_2
-    lsl     R_TMP_1
-    rol     R_TMP_2
-    lsl     R_TMP_1
-    rol     R_TMP_2
-    lsl     R_TMP_1
-    rol     R_TMP_2
+    ; pomno¿enie wartosci przez wspó³czynnik opoznienia zaswiecenia
+    ldi     R_TMP_2, 8
+    mul     R_TMP_1, R_TMP_2
     ; porownanie pomnozonej wartosci diody z licznikiem
-    movw    r2, r0
-    sub     r2, R_TMP_1
-    sbc     r3, R_TMP_2
+    movw    R_TMP_1, r2
+    sub     R_TMP_1, r0
+    sbc     R_TMP_2, r1
     brmi    _CLDP_LOOP_0
-    tst     r3
+    tst     R_TMP_2
     brne    _CLDP_LOOP_255
-    mov     R_TMP_1, r2
     clr     R_TMP_3  ; Kasowanie flagi zatrzymania inkrementacji licznika
     rjmp    _CLDP_LOOP_STORE_VALUE
 _CLDP_LOOP_0:
@@ -1110,6 +1268,12 @@ LOAD_BYTE_FROM_EE_POINTER_A:
     in      R_DATA, EEDR
     ret
 ;----------------------------------------------------------------------------
+.macro  LOAD_BYTE_FROM_EE_POINTER_A_OFFSET
+    adiw    R_POINTER_A, (@0)
+    rcall   LOAD_BYTE_FROM_EE_POINTER_A
+    sbiw    R_POINTER_A, (@0)
+.endmacro
+;----------------------------------------------------------------------------
 .macro  LOAD_BYTE_FROM_EE
     ldi     R_POINTER_A_H, high(@0)
     ldi     R_POINTER_A_L, low(@0)
@@ -1134,6 +1298,7 @@ LOAD_FROM_EE:
     ldi     R_LOOP, 8
 _LFE_LED_GROUP_LEN_TAB_LOOP:
     rcall   LOAD_BYTE_FROM_EE_POINTER_A
+    adiw    R_POINTER_A, 1
     ; spradzenie poprawnoœci wpisu
     cpi     R_DATA, LED_DATA_COUNT_MAX + 1
     brlo    PC + 2
@@ -1145,7 +1310,106 @@ _LFE_LED_GROUP_LEN_TAB_LOOP:
     dec     R_LOOP
     brne    _LFE_LED_GROUP_LEN_TAB_LOOP
 
+    ; Iloœæ sekcji
+    LOAD_BYTE_FROM_EE   E_LED_SECTION_COUNT
+    ; korekta ilosci sekcji, gdy za du¿o to 0
+    cpi     R_DATA, LED_SECTION_COUNT_MAX
+    brlo    PC + 2
+    ldi     R_DATA, 0
+    sts     LED_SECTION_COUNT, R_DATA
     
+    ; Sekcje
+    ; wskaŸnik EEPROM
+    LDI16   R_POINTER_A, E_LED_SECTION_0
+    ; wskaŸnik RAM
+    LDI16   R_POINTER_B, LED_SECTION_0
+    ; pêtla wczytywania sekcji
+    lds     R_COUNTER, LED_SECTION_COUNT
+_LFE_SECTION_LOOP:
+    ; warunek
+    tst     R_COUNTER
+    brne    PC + 2
+    rjmp    _LFE_SECTION_LOOP_END
+    dec     R_COUNTER
+    ; domyœlne wartoœci nag³ówka nie przechowywane w EE
+    std     R_POINTER_B + LED_SECTION_0_COUNTER_H - LED_SECTION_0, R_ZERO
+    std     R_POINTER_B + LED_SECTION_0_COUNTER_L - LED_SECTION_0, R_ZERO
+    std     R_POINTER_B + LED_SECTION_0_RESERVED_3 - LED_SECTION_0, R_FF
+    std     R_POINTER_B + LED_SECTION_0_RESERVED_2 - LED_SECTION_0, R_FF
+    std     R_POINTER_B + LED_SECTION_0_RESERVED_1 - LED_SECTION_0, R_FF
+    std     R_POINTER_B + LED_SECTION_0_RESERVED_0 - LED_SECTION_0, R_FF
+    ; odczyt nag³ówka
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_3 - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_STATE_3 - LED_SECTION_0, R_DATA
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_2 - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_STATE_2 - LED_SECTION_0, R_DATA
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_1 - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_STATE_1 - LED_SECTION_0, R_DATA
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_0 - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_STATE_0 - LED_SECTION_0, R_DATA
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_DATA_SKIP - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_DATA_SKIP - LED_SECTION_0, R_DATA
+    ; grupa na koñcu bo pos³u¿y do pobrania iloœci led
+    LOAD_BYTE_FROM_EE_POINTER_A_OFFSET    E_LED_SECTION_0_GROUP - E_LED_SECTION_0
+    std     R_POINTER_B + LED_SECTION_0_GROUP - LED_SECTION_0, R_DATA
+    ; sprawdzenie czy numer grupy jest poprawny, je¿eli nie to koniec odczytu
+    cpi     R_DATA, 8
+    brlo    _LFE_SECTIONS_LOOP_GROUP_CORRENT
+    ldi     R_DATA, 0x9 << 1 ; niew³aœciwa grupa
+    rjmp    _LFE_DATA_ERROR
+_LFE_SECTIONS_LOOP_GROUP_CORRENT:
+    ; przesuniêcie wskaŸnika B na adres RAM danych sekcji
+    adiw    R_POINTER_B, LED_SECTION_0_DATA - LED_SECTION_0
+    ; zachowaie wskaŸnika B
+    movw    R_TMP_1, R_POINTER_B
+    ; pobranie iloœci LED w grupie
+    LDI16   R_POINTER_B, LED_GROUP_LEN_TAB
+    add     R_POINTER_B_L, R_DATA
+    adc     R_POINTER_B_H, R_ZERO
+    ; iloœæ danych w grupie
+    ld      R_LOOP, R_POINTER_B
+    ; przywrocenie wskaŸnika B
+    movw    R_POINTER_B, R_TMP_1
+    ; przesuniêcie wskaŸnika A a dares danych EE
+    adiw    R_POINTER_A, E_LED_SECTION_0_DATA - E_LED_SECTION_0
+    
+_LFE_SECTION_DATA_LOOP:
+    ; warunek pêtli danych
+    tst     R_LOOP
+    breq    _LFE_SECTION_DATA_LOOP_END
+    dec     R_LOOP
+    
+    ; porownanie dla sprawdzenia czy koniec danych EE
+    CPI16   R_POINTER_A, E_LED_SECTIONS_END
+    brlo    _LFE_SECTIONS_LOOP_EE_ADDRESS_CORRENT
+    ; przekroczony adres EE
+    ldi     R_DATA, 0xB << 1 ; przekroczony adres
+    rjmp    _LFE_DATA_ERROR
+_LFE_SECTIONS_LOOP_EE_ADDRESS_CORRENT:
+
+    ; porownanie dla sprawdzenia czy koniec danych RAM
+    CPI16   R_POINTER_B, LED_SECTIONS_END
+    brlo    _LFE_SECTIONS_LOOP_RAM_ADDRESS_CORRENT
+    ; przekroczony adres EE
+    ldi     R_DATA, 0xC << 1 ; przekroczony adres
+    rjmp    _LFE_DATA_ERROR
+_LFE_SECTIONS_LOOP_RAM_ADDRESS_CORRENT:
+
+    ; przepisanie bajtu danych
+    rcall   LOAD_BYTE_FROM_EE_POINTER_A
+    adiw    R_POINTER_A, 1
+    st      R_POINTER_B+, R_DATA
+    
+    ;koniec pêtli danych
+    rjmp    _LFE_SECTION_DATA_LOOP
+_LFE_SECTION_DATA_LOOP_END:
+
+    ; koniec pêtli sekcji
+    rjmp    _LFE_SECTION_LOOP
+
+_LFE_SECTION_LOOP_END:
+
+_LFE_DATA_ERROR:
     ret
 ;----------------------------------------------------------------------------
 ;----------------------------------------------------------------------------
@@ -1163,36 +1427,127 @@ _LFE_LED_GROUP_LEN_TAB_LOOP:
     rcall   SAVE_BYTE_TO_EE_POINTER_A
 .endmacro
 ;----------------------------------------------------------------------------
-SAVE_TO_EE:   
-/*
+.macro  SAVE_DATA_TO_EE_POINTER_A_OFFSET
+    adiw    R_POINTER_A, @0
+    rcall   SAVE_BYTE_TO_EE_POINTER_A
+    sbiw    R_POINTER_A, @0
+.endmacro
+;----------------------------------------------------------------------------
+SAVE_TO_EE:
+    ; Zapis adresu I2C
     sbrs    R_TMP_3, I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT
     rjmp    _STE_I2C_ADDRESS_SKIP
+    ; ztr45apis
     in      R_TMP_1, TWAR
     SAVE_REG_TO_EE  E_I2C_MY_ADDRESS, R_TMP_1
     SAVE_REG_TO_EE  E_I2C_MY_ADDRESS_L, R_I2C_MY_ADDRESS_L
 _STE_I2C_ADDRESS_SKIP:
 
-    sbrs    R_TMP_3, I2C_REQUEST_SAVE_EE_POINT_COUNT_BIT
-    rjmp    _STE_POINT_COUNT_SKIP
-;DUPCIA    SAVE_BYTE_TO_EE LED_DATA_COUNT
-_STE_POINT_COUNT_SKIP:
-
-    sbrs    R_TMP_3, I2C_REQUEST_SAVE_EE_SECTIONS_BIT
-    rjmp    _STE_SECTIONS_SKIP
-    LDI16   R_POINTER_B, LED_SECTIONS
-    LDI16   R_POINTER_A, E_LED_SECTIONS
-    ldi     R_LOOP, high(LED_SECTIONS_END)
-_STE_SECTIONS_LOOP:
-    ld      R_DATA, R_POINTER_B+
+    ; zapis danych
+    sbrs    R_TMP_3, I2C_REQUEST_SAVE_EE_DATA_BIT
+    rjmp    _STE_DATA_SKIP
+    ; zapis iloœci LED w grupach
+    LDI16   R_POINTER_A, E_LED_GROUP_LEN_TAB
+    LDI16   R_POINTER_B, LED_GROUP_LEN_TAB
+    ldi     R_LOOP, 8
+_STE_GROUP_COUNT_LOOP:
+    ld      R_DATA, R_POINTER_B +
     rcall   SAVE_BYTE_TO_EE_POINTER_A
     adiw    R_POINTER_A, 1
-    ; porownanie dla sprawdzenia czy koniec danych
-    cpi     R_POINTER_B_L, low(LED_SECTIONS_END)
-    cpc     R_POINTER_B_H, R_LOOP
-    brlo    _STE_SECTIONS_LOOP
+    dec     R_LOOP
+    brne    _STE_GROUP_COUNT_LOOP
 
-_STE_SECTIONS_SKIP:
-*/    
+    ; Zapis sekcji
+    ; iloœæ sekcji
+    lds     R_COUNTER, LED_SECTION_COUNT
+    SAVE_REG_TO_EE  E_LED_SECTION_COUNT, R_COUNTER
+    ; dane wszystkich sekcji
+    LDI16   R_POINTER_B, LED_SECTION_0
+    LDI16   R_POINTER_A, E_LED_SECTION_0
+    ldi     R_LOOP, high(LED_SECTIONS_END)
+_STE_SECTIONS_LOOP:
+    ; warunek pêtli
+    tst     R_COUNTER
+    breq    _STE_DATA_CORRECT
+    dec     R_COUNTER
+    ; zapis nag³ówka
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_STATE_3 - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_3 - E_LED_SECTION_0
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_STATE_2 - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_2 - E_LED_SECTION_0
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_STATE_1 - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_1 - E_LED_SECTION_0
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_STATE_0 - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_STATE_0 - E_LED_SECTION_0
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_DATA_SKIP - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_DATA_SKIP - E_LED_SECTION_0
+    ; grupa na koñcu bo pos³u¿y do pobrania iloœci led
+    ldd     R_DATA, R_POINTER_B + LED_SECTION_0_GROUP - LED_SECTION_0
+    SAVE_DATA_TO_EE_POINTER_A_OFFSET    E_LED_SECTION_0_GROUP - E_LED_SECTION_0
+    ; sprawdzenie czy numer grupy jest poprawny, je¿eli nie to koniec zapisu
+    cpi     R_DATA, 8
+    brlo    _STE_SECTIONS_LOOP_GROUP_CORRENT
+    ldi     R_DATA, 0x9 << 1 ; nieogreœlona grupa
+    rjmp    _STE_DATA_ERROR
+_STE_SECTIONS_LOOP_GROUP_CORRENT:
+    ; przesuniêcie wskaŸnika B na adres danych sekcji
+    adiw    R_POINTER_B, LED_SECTION_0_DATA - LED_SECTION_0
+    ; zachowaie wskaŸnika B
+    movw    R_TMP_1, R_POINTER_B
+    ; pobranie iloœci LED w grupie
+    LDI16   R_POINTER_B, LED_GROUP_LEN_TAB
+    add     R_POINTER_B_L, R_DATA
+    adc     R_POINTER_B_H, R_ZERO
+    ; iloœæ danych w grupie
+    ld      R_LOOP, R_POINTER_B
+    ; przywrocenie wskaŸnika B
+    movw    R_POINTER_B, R_TMP_1
+    ; przesuniêcie wskaŸnika A a dares danych
+    adiw    R_POINTER_A, E_LED_SECTION_0_DATA - E_LED_SECTION_0
+    ; pêtla danych
+_STE_SECTION_DATA_LOOP:
+    ; warunek pêtli danych
+    tst     R_LOOP
+    breq    _STE_SECTION_DATA_LOOP_END
+    dec     R_LOOP
+    
+    ; porownanie dla sprawdzenia czy koniec danych EE
+    CPI16   R_POINTER_A, E_LED_SECTIONS_END
+    brlo    _STE_SECTIONS_LOOP_EE_ADDRESS_CORRENT
+    ; przekroczony adres EE
+    ldi     R_DATA, 0xA << 1 ; przekroczony adres
+    rjmp    _STE_DATA_ERROR
+_STE_SECTIONS_LOOP_EE_ADDRESS_CORRENT:
+
+; porownanie dla sprawdzenia czy koniec danych RAM
+    CPI16   R_POINTER_B, LED_SECTIONS_END
+    brlo    _STE_SECTIONS_LOOP_RAM_ADDRESS_CORRENT
+    ; przekroczony adres RAM
+    ldi     R_DATA, 0xD << 1 ; przekroczony adres
+    rjmp    _STE_DATA_ERROR
+_STE_SECTIONS_LOOP_RAM_ADDRESS_CORRENT:
+
+    ; zapisaie bajtu danych
+    ld      R_DATA, R_POINTER_B +
+    rcall   SAVE_BYTE_TO_EE_POINTER_A
+    adiw    R_POINTER_A, 1
+
+    ;koniec pêtli danych
+    rjmp    _STE_SECTION_DATA_LOOP
+_STE_SECTION_DATA_LOOP_END:
+
+    ; koniec pêtli sekcji 
+    rjmp    _STE_SECTIONS_LOOP
+    
+_STE_DATA_CORRECT:
+    clc
+    rjmp     _STE_DATA_SKIP
+_STE_DATA_ERROR:
+    sec
+    rjmp     _STE_DATA_SKIP
+
+_STE_DATA_SKIP:
+
     ret
 ;----------------------------------------------------------------------------
 ;----------------------------------------------------------------------------
@@ -1407,6 +1762,7 @@ _TI_TWCR:
 ;----------------------------------------------------------------------------
 SET_TEST_DATA:
     rcall    TEST_I2C_REQUEST_SET_GROUP_SIZE
+    rcall    TEST_I2C_REQUEST_ADD_SECTIONS
     ret
 ;----------------------------------------------------------------------------
 TEST_I2C_REQUEST_SET_GROUP_SIZE:
@@ -1456,6 +1812,57 @@ TEST_I2C_REQUEST_SET_GROUP_SIZE:
     STI     R_I2C_BUF_POINTER+, 100
     rcall   I2C_CHECK_REQUEST
     
+    ; rozmiar grupy 4 - 4 LED
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_SET_GROUP_SIZE
+    STI     R_I2C_BUF_POINTER+, 4
+    STI     R_I2C_BUF_POINTER+, 4
+    rcall   I2C_CHECK_REQUEST
+
+    ret
+;----------------------------------------------------------------------------
+TEST_I2C_REQUEST_ADD_SECTIONS:
+    STSI8   LED_SECTION_COUNT, 0
+
+    ; sekcja 0
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_ADD_SECTION
+    rcall   I2C_CHECK_REQUEST
+    
+    ; naglowek sekcji 0
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_SET_SECTION_CONTROL
+    STI     R_I2C_BUF_POINTER+, 0 ; sekcja
+    STI     R_I2C_BUF_POINTER+, 4 ; grupa
+    STI     R_I2C_BUF_POINTER+, 0 ; state3
+    STI     R_I2C_BUF_POINTER+, 0 ; state2
+    STI     R_I2C_BUF_POINTER+, 0 ; state1
+    STI     R_I2C_BUF_POINTER+, 1 ; state0
+    STI     R_I2C_BUF_POINTER+, 3 ; counter
+    rcall   I2C_CHECK_REQUEST
+    
+    ; dane sekcji 0
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_SET_SECTION_DATA
+    STI     R_I2C_BUF_POINTER+, 0 ; sekcja
+    STI     R_I2C_BUF_POINTER+, 1 ; 1
+    STI     R_I2C_BUF_POINTER+, 3 ; 3
+    STI     R_I2C_BUF_POINTER+, 5 ; 5
+    STI     R_I2C_BUF_POINTER+, 7 ; 7
+    rcall   I2C_CHECK_REQUEST
+ 
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_ADD_SECTION
+    rcall   I2C_CHECK_REQUEST
+
+; zapis do EE
+    LDI16   R_I2C_BUF_POINTER, I2C_RECV_DATA_REQUEST
+    STI     R_I2C_BUF_POINTER+, I2C_REQUEST_SAVE_EE + (1 << I2C_REQUEST_SAVE_EE_DATA_BIT)
+    rcall   I2C_CHECK_REQUEST
+    
+; odczyt z EE
+    rcall   LOAD_FROM_EE
+
     ret
 ;----------------------------------------------------------------------------
 SET_TEST_DATA_MEM:

@@ -6,7 +6,7 @@
     <ToolchainName>com.Atmel.AVRAssembler</ToolchainName>
     <ProjectGuid>{c4737ad0-2170-4300-b7cb-329b70ebd249}</ProjectGuid>
     <avrdeviceseries>none</avrdeviceseries>
-    <avrdevice>ATmega16A</avrdevice>
+    <avrdevice>ATmega32A</avrdevice>
     <OutputFileName>$(MSBuildProjectName)</OutputFileName>
     <OutputFileExtension>.obj</OutputFileExtension>
     <OutputDirectory>$(MSBuildProjectDirectory)\$(Configuration)</OutputDirectory>
@@ -66,6 +66,11 @@
       </AvrAssembler>
     </ToolchainSettings>
     <OutputType>Executable</OutputType>
+    <PostBuildEvent>echo  $(avrdude) -p $(avrdevice) -c stk200 -P lpt1 -i 50 -U lfuse:w:0xFF:m -U hfuse:w:0x49:m  -U flash:w:"$(OutputDirectory)\$(OutputFileName).hex":i &gt; "$(OutputDirectory)\avrdude.flash.bat"
+
+type "$(OutputDirectory)\avrdude.flash.bat" &gt; "$(OutputDirectory)\avrdude.flash.ee.bat"
+
+echo  -U eeprom:w:"$(OutputDirectory)\$(OutputFileName).eep":i  &gt;&gt; "$(OutputDirectory)\avrdude.flash.ee.bat"</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <ToolchainSettings>

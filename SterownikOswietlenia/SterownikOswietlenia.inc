@@ -16,9 +16,8 @@
 .equ    I2C_REQUEST_SLAVE_ADDRESS                   = 0x81
 .equ    I2C_REQUEST_SAVE_EE                         = 0xA0 ; bity 3:0 okreslaja to co zostanie zapisane
 .equ        I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 0
-.equ        I2C_REQUEST_SAVE_EE_POINT_COUNT_BIT         = 1
-.equ        I2C_REQUEST_SAVE_EE_SECTIONS_BIT            = 2
-;.equ        I2C_REQUEST_SAVE_EE_OSCCAL_VALUE_BIT        = 3
+.equ        I2C_REQUEST_SAVE_EE_DATA_BIT                = 1
+;.equ        I2C_REQUEST_SAVE_EE_OSCCAL_VALUE_BIT        = 2
 .equ        I2C_REQUEST_SAVE_EE_MASK                    = 0xF8
 
 .equ    I2C_REQUEST_SET_GROUP_SIZE                  = 0xC1
@@ -29,10 +28,15 @@
 
 .equ    I2C_REQUEST_SET_SECTION_DATA                = 0xC8
 
+.equ    I2C_REQUEST_DELETE_SECTION                  = 0xC5
+
+.equ    I2C_REQUEST_CLEAR_SECTIONS                  = 0xCA
+
 .equ    I2C_REQUEST_RESET                           = 0x88
 
 
 .equ    LED_DATA_COUNT_MAX              = 150
+.equ    LED_SECTION_COUNT_MAX           = 33
 .equ    BUTTON_COUNT_MAX                = 25
 
 ;------------ !!!!!!!!!!!!!!!!!!!!1---------------- 

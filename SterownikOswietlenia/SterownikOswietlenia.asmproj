@@ -6,7 +6,7 @@
     <ToolchainName>com.Atmel.AVRAssembler</ToolchainName>
     <ProjectGuid>{c4737ad0-2170-4300-b7cb-329b70ebd249}</ProjectGuid>
     <avrdeviceseries>none</avrdeviceseries>
-    <avrdevice>ATmega32A</avrdevice>
+    <avrdevice>ATmega32</avrdevice>
     <OutputFileName>$(MSBuildProjectName)</OutputFileName>
     <OutputFileExtension>.obj</OutputFileExtension>
     <OutputDirectory>$(MSBuildProjectDirectory)\$(Configuration)</OutputDirectory>
@@ -38,7 +38,8 @@
         </dependencies>
       </framework-data>
     </AsfFrameworkConfig>
-    <avrtool>com.atmel.avrdbg.tool.simulator</avrtool>
+    <avrtool>
+    </avrtool>
     <com_atmel_avrdbg_tool_simulator>
       <ToolOptions>
         <InterfaceProperties>

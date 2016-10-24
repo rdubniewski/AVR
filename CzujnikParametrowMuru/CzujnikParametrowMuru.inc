@@ -12,7 +12,7 @@
 
 .equ    FREQUENCY                       = 12000000
 ; Domyslna licznik dla PLL by wstepnie ustawiæ 12MHz
-.equ    OSCCAL_DEFAULT                   = OSCCAL_DEFAULT
+.equ    OSCCAL_DEFAULT                   = 220
 
 .equ    SENSOR_I2C_FREQUENCY            = 100000
 .equ    SENSOR_I2C_DELAY_TICKS          = FREQUENCY / SENSOR_I2C_FREQUENCY / 2

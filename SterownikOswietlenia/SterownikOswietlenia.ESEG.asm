@@ -1,6 +1,6 @@
 
 .eseg
-E_I2C_MY_ADDRESS:                       .byte   1
+E_I2C_MY_ADDRESS:                       .db   I2C_MY_ADDRESS_DEFAULT
 E_I2C_MY_ADDRESS_L:                     .byte   1
 
 E_RESERVED:                             .byte   8

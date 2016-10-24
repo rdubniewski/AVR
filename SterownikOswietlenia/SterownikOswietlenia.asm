@@ -477,7 +477,6 @@ _I2C_CR_SET_SLAVE_ADDRES_H:
     brsh    _I2C_CR_SET_SLAVE_ADDRES_H_END ; koniec gdy adres jest za wysoki - zarezerwowany
     cpi     R_TMP_1, 0b1000
     brlo    _I2C_CR_SET_SLAVE_ADDRES_H_END ; koniec gdy adres jest za niski - zarezerwowany
-    lsl     R_TMP_1
     ; adres jest poprawny jak na 7 bitowy
     lsl     R_TMP_1
     out     TWAR, R_TMP_1
@@ -1437,7 +1436,7 @@ SAVE_TO_EE:
     ; Zapis adresu I2C
     sbrs    R_TMP_3, I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT
     rjmp    _STE_I2C_ADDRESS_SKIP
-    ; ztr45apis
+    ; zapis
     in      R_TMP_1, TWAR
     SAVE_REG_TO_EE  E_I2C_MY_ADDRESS, R_TMP_1
     SAVE_REG_TO_EE  E_I2C_MY_ADDRESS_L, R_I2C_MY_ADDRESS_L

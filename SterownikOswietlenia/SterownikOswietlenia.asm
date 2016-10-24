@@ -209,47 +209,39 @@ RESET_SOFT:
     ldi     R_TMP_1, low(RAMEND)
     out     SPL, R_TMP_1
 
-    ; ustawienie zegara na 16 MHz
- ;   ldi     R_TMP_1, OSCCAL_DEFAULT
- ;   out     OSCCAL, R_TMP_1
- ;   sts     OSCCAL_VALUE, R_TMP_1
- ;   ldi     r_tmp_1, 1<<plle
- ;   out     pllcsr, r_tmp_1
- ;   
     ; inicjowanie zmiennych - rejestry
     clr     R_CONTROL
     clr     R_ZERO
     ldi     R_TMP_1, 0xFF
     mov     R_FF, R_TMP_1
 
-    ; inicjacja IO
+    ; wszystkie porty na IN
+    out     PORTA, R_ZERO
+    out     DDRA, R_ZERO
     out     PORTB, R_ZERO
     out     DDRB, R_ZERO
     out     PORTC, R_ZERO
     out     DDRC, R_ZERO
     out     PORTD, R_ZERO
-    out     DDRD, R_FF
-    ;sbi     LED_CLK_DDR, LED_CLK_BIT
-    sbi     LED_DATA_DDR, LED_DATA_BIT
-    ;cbi     LED_CLK_PORT, LED_CLK_BIT
-    cbi     LED_DATA_PORT, LED_DATA_BIT
-    ;sbi     LED_SPI_MOSI_DDR, LED_SPI_MOSI_BIT
-    ;sbi     LED_SPI_SCK_DDR, LED_SPI_SCK_BIT
+    out     DDRD, R_ZERO
+
+    ; inicjacja IO
+    out     LED_CKO_DDR, R_FF
+    sbi     LED_SDO_DDR, LED_SDO_BIT
+    cbi     LED_SDO_PORT, LED_SDO_BIT
     sbi     LED_POWER_DDR, LED_POWER_BIT
     sbi     BUTTON_H_0_DDR, BUTTON_H_0_BIT
     sbi     BUTTON_H_1_DDR, BUTTON_H_1_BIT
     sbi     BUTTON_H_2_DDR, BUTTON_H_2_BIT
+    sbi     BUTTON_H_3_DDR, BUTTON_H_3_BIT
+    sbi     BUTTON_H_4_DDR, BUTTON_H_4_BIT
     cbi     BUTTON_H_0_PORT, BUTTON_H_0_BIT
     cbi     BUTTON_H_1_PORT, BUTTON_H_1_BIT
     cbi     BUTTON_H_2_PORT, BUTTON_H_2_BIT
+    cbi     BUTTON_H_3_PORT, BUTTON_H_3_BIT
+    cbi     BUTTON_H_4_PORT, BUTTON_H_4_BIT
+    sbi     TEST_FREQUENCY_DDR, TEST_FREQUENCY_BIT
 
-    ; Inicjowanie SPI dla LED - jest wyzej
-    ;ldi     R_TMP_1, (1 << LED_SPI_MOSI_BIT) | (1 << LED_SPI_SCK_BIT)
-    ;out     LED_SPI_SCK_DDR, R_TMP_1
-    ; Wlaczenie mastera SPI dla LED
-    ldi     R_TMP_1, (1 << SPE) | (1 << MSTR) | (0 << CPHA) | (0 << SPR1) | (1 << SPR0)
-    out     SPCR, R_TMP_1
-    
     ; Zerowanie wszystkich komórek pamiêci
     LDI16   R_POINTER_A, SRAM_START
     LDI16   R_POINTER_B, SRAM_SIZE
@@ -264,30 +256,19 @@ CLEAR_RAM_LOOP:
     STSI8   DEVICE_TYPE, DEVICE_TYPE_DEF
     STSI8   DEVICE_VERSION, DEVICE_VERSION_DEF
     clr     R_TIMER_CHECK_BUTTONS_COUNTER
-    STSI8   TIMER_CHECK_BUTTONS_COUNT, 5
+    STSI8   TIMER_CHECK_BUTTONS_COUNT, TIMER_CHECK_BUTTONS_COUNT_DEFAULT
     clr     R_TIMER_SEND_LED_DATA_COUNTER
-    STSI8   TIMER_SEND_LED_DATA_COUNT, 4
-    ; czyszczenie obszaru LED
-  ;  LDI16   R_POINTER_A, LED_SECTION_0
-  ;  rcall   CLEARLED_SECTION_POINTER_A
-  ;  LDI16   R_POINTER_A, LED_SECTION_1
-  ;  rcall   CLEARLED_SECTION_POINTER_A
-  ;  LDI16   R_POINTER_A, LED_SECTION_2
-  ;  rcall   CLEARLED_SECTION_POINTER_A
-    
-    ; konfiguracja timera zmian wartosci
-    .equ    T_PRESCALER = 8
-    .equ    T_FREQUENCY = 100
-    .equ    T_VALUE = FREQUENCY / T_FREQUENCY / T_PRESCALER - 1
+    STSI8   TIMER_SEND_LED_DATA_COUNT, TIMER_SEND_LED_DATA_COUNT
+
+    ; konfiguracja timera kontroli przycisków i zmian wartoœci LED
     ldi     R_TMP_1, T_VALUE >> 8
     out     OCR1AH, R_TMP_1
     ldi     R_TMP_1, T_VALUE & 0xFF
     out     OCR1AL, R_TMP_1
-    ldi     R_TMP_1, 0 << WGM13 | 1 << WGM12 | 0 << CS12 | 1 << CS11 | 0 << CS10
+    ldi     R_TMP_1, 0 << WGM13 | 1 << WGM12 | T_PRESCALER_CS
     out     TCCR1B, R_TMP_1
     ldi     R_TMP_1, 1 << OCIE1A
     out     TIMSK, R_TMP_1
-    
 
     ; inicjowanie I2C
     rcall   TWI_M_SLAVE_INIT
@@ -295,33 +276,15 @@ CLEAR_RAM_LOOP:
     ; wczytanie konfiguracji
     rcall   LOAD_FROM_EE
 
+    ; W³¹czenie SLEEP i oszczêdnoœci energii
+    ldi     R_TMP_1, 1 << SE | 0 << SM2 | 0 << SM1 | 0 << SM0
+    out     MCUCR, R_TMP_1
+    ; wy³¹czenie komparatora
+    sbi     ACSR, ACD
+
     ; Testowe dane
-    rcall   SET_TEST_DATA
-    rcall   SEND_LED_DATA
-    /*
-_TEST_:
-    ldi     R_POINTER_B_H, high(LED_SECTION_0)
-    ldi     R_POINTER_B_L, low(LED_SECTION_0)
-    rcall   _CSLPB_INCREMENT
-    rcall   CALCULATE_LED_DATA_0
-    rjmp _TEST_
-    */
-
-    ;STSI8   LED_R, 200
-    ;STSI8   LED_g, 190
-    ;STSI8   LED_b, 80
-
-    ; ldi     R_MUL_A_0, 11
-    ; ldi     R_MUL_A_1, 22
-    ; ldi     R_MUL_A_2, 55
-    ; ldi     R_MUL_B_0, 77
-    ; rcall   MUL_U8_U8_3_F
-    ; rcall   MUL_U8_U8_3_F
-    ; rcall   MUL_U8_U8_3_F
-
-    ; nop
-    ; rcall   SEND_LED_DATA
-    ; nop
+;    rcall   SET_TEST_DATA
+;    rcall   SEND_LED_DATA
 
     sei
 
@@ -332,6 +295,8 @@ MAIN_LOOP:
 
     sbrc    R_CONTROL, R_CONTROL_TIMER_BIT
     rcall   TIMER
+
+    sleep
 
     rjmp    MAIN_LOOP
 ;----------------------------------------------------------------------------
@@ -785,6 +750,13 @@ _GNTPA_ERROR:
 TIMER:
     cbr     R_CONTROL, 1 << R_CONTROL_TIMER_BIT
 
+    ; testowe wyjscie czestotliwoœci 
+    in      R_TMP_1, TEST_FREQUENCY_PORT
+    sbrc    R_TMP_1, TEST_FREQUENCY_BIT
+    cbi     TEST_FREQUENCY_PORT, TEST_FREQUENCY_BIT
+    sbrs    R_TMP_1, TEST_FREQUENCY_BIT
+    sbi     TEST_FREQUENCY_PORT, TEST_FREQUENCY_BIT
+
     ; Sprawdzenie klawiatury
     inc     R_TIMER_CHECK_BUTTONS_COUNTER
     lds     R_TMP_1, TIMER_CHECK_BUTTONS_COUNT
@@ -837,21 +809,46 @@ CHECK_BUTTONS:
     CHECK_BUTTON_MACRO  0, 0
     CHECK_BUTTON_MACRO  1, 1
     CHECK_BUTTON_MACRO  2, 2
+    CHECK_BUTTON_MACRO  3, 3
+    CHECK_BUTTON_MACRO  4, 4
     cbi     BUTTON_H_0_PORT, BUTTON_H_0_BIT
     WAIT_TIMER_MICROSEC     100
     sbi     BUTTON_H_1_PORT, BUTTON_H_1_BIT
     WAIT_TIMER_MICROSEC     100
-    CHECK_BUTTON_MACRO  3, 0
-    CHECK_BUTTON_MACRO  4, 1
-    CHECK_BUTTON_MACRO  5, 2
+    CHECK_BUTTON_MACRO  5, 0
+    CHECK_BUTTON_MACRO  6, 1
+    CHECK_BUTTON_MACRO  7, 2
+    CHECK_BUTTON_MACRO  8, 3
+    CHECK_BUTTON_MACRO  9, 4
     cbi     BUTTON_H_1_PORT, BUTTON_H_1_BIT
     WAIT_TIMER_MICROSEC     100
-    sbi     BUTTON_H_1_PORT, BUTTON_H_2_BIT
+    sbi     BUTTON_H_2_PORT, BUTTON_H_2_BIT
     WAIT_TIMER_MICROSEC     100
-    CHECK_BUTTON_MACRO  6, 0
-    CHECK_BUTTON_MACRO  7, 1
-    CHECK_BUTTON_MACRO  8, 2
-    cbi     BUTTON_H_1_PORT, BUTTON_H_2_BIT
+    CHECK_BUTTON_MACRO  10, 0
+    CHECK_BUTTON_MACRO  11, 1
+    CHECK_BUTTON_MACRO  12, 2
+    CHECK_BUTTON_MACRO  13, 3
+    CHECK_BUTTON_MACRO  14, 4
+    cbi     BUTTON_H_2_PORT, BUTTON_H_2_BIT
+    WAIT_TIMER_MICROSEC     100
+    sbi     BUTTON_H_3_PORT, BUTTON_H_3_BIT
+    WAIT_TIMER_MICROSEC     100
+    CHECK_BUTTON_MACRO  15, 0
+    CHECK_BUTTON_MACRO  16, 1
+    CHECK_BUTTON_MACRO  17, 2
+    CHECK_BUTTON_MACRO  18, 3
+    CHECK_BUTTON_MACRO  19, 4
+    cbi     BUTTON_H_3_PORT, BUTTON_H_3_BIT
+    WAIT_TIMER_MICROSEC     100
+    sbi     BUTTON_H_4_PORT, BUTTON_H_4_BIT
+    WAIT_TIMER_MICROSEC     100
+    CHECK_BUTTON_MACRO  20, 0
+    CHECK_BUTTON_MACRO  21, 1
+    CHECK_BUTTON_MACRO  22, 2
+    CHECK_BUTTON_MACRO  23, 3
+    CHECK_BUTTON_MACRO  24, 4
+    cbi     BUTTON_H_4_PORT, BUTTON_H_4_BIT
+
     /*
     lds     R_DATA, BUTTON_STATE + 0
     ; pobranie stanu pinu
@@ -1042,14 +1039,14 @@ _SLD_GROUP_LOOP:
     ld      R_DATA, R_POINTER_B +
 _SLD_BYTE_LOOP:
     ; zegar 0
-    out     PORTD, R_ZERO
+    out     LED_CKO_PORT, R_ZERO
     ; dane
     sbrs    R_DATA, 7
-    cbi     LED_DATA_PORT, LED_DATA_BIT
+    cbi     LED_SDO_PORT, LED_SDO_BIT
     sbrc    R_DATA, 7
-    sbi     LED_DATA_PORT, LED_DATA_BIT
+    sbi     LED_SDO_PORT, LED_SDO_BIT
     ; zegar 1
-    out     PORTD, R_TMP_1
+    out     LED_CKO_PORT, R_TMP_1
     ; nastêpy bit
     lsl     R_DATA
     ; warunek pêtli wysy³ania bajtu
@@ -1065,7 +1062,7 @@ _SLD_GROUP_LOOP_END:
     brcc    _SLD_GROUP_TAB_LOOP
 
     ; Koniec zegar 0
-    out     PORTD, R_ZERO
+    out     LED_CKO_PORT, R_ZERO
 
     ret
 ;----------------------------------------------------------------------------

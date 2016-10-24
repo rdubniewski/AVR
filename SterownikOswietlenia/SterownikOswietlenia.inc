@@ -6,13 +6,20 @@
 .equ    DEVICE_TYPE_DEF                 = DEVICE_LIGHTING_CONTROLER_TYPE
 .equ    DEVICE_VERSION_DEF              = 0x10
 
-.equ    FREQUENCY                       = 8000000
-; Domyslna licznik dla PLL by wstepnie ustawiæ 16MHz
-.equ    OSCCAL_DEFAULT                  = 220
-
+.equ    FREQUENCY                       = 12000000
 
 .equ    I2C_MY_ADDRESS_DEFAULT          = DEVICE_LIGHTING_CONTROLER_I2C_ADDRES
 
+; konfiguracja timera kontroli - timer1
+.equ    T_FREQUENCY                                 = 200
+.equ    T_PRESCALER                                 = 1
+.equ    T_PRESCALER_CS                              = 0 << CS12 | 0 << CS11 | 1 << CS10
+.equ    T_VALUE                                     = FREQUENCY / T_FREQUENCY / T_PRESCALER - 1
+
+.equ    TIMER_CHECK_BUTTONS_COUNT_DEFAULT           = T_FREQUENCY / 20 ; 20/sec
+.equ    TIMER_SEND_LED_DATA_COUNT_DEFAULT           = T_FREQUENCY / 50 ; 50/sec
+
+; Zadania I2C
 .equ    I2C_REQUEST_SLAVE_ADDRESS                   = 0x81
 .equ    I2C_REQUEST_SAVE_EE                         = 0xA0 ; bity 3:0 okreslaja to co zostanie zapisane
 .equ        I2C_REQUEST_SAVE_EE_I2C_ADDRESS_BIT         = 0
@@ -58,11 +65,6 @@
 .def    R_LOOP                          = r22
 .def    R_COUNTER                       = r23
 
-#define R_MUL_A_0                       r16
-#define R_MUL_A_1                       r17
-#define R_MUL_A_2                       r18
-#define R_MUL_B_0                       r20
-
 #define R_POINTER_A_L                   YL
 #define R_POINTER_A_H                   YH
 #define R_POINTER_A                     Y
@@ -84,9 +86,6 @@
 ; zezwolenie na adresowanie odczytywanego rejestru zakonczone bitem STOP
 .equ    I2C_MACRO1_ACCEPT_STOP_AFTER_REG_ADDRESS    = 1
 
-; Zadania I2C
-
-
 
 /* Przypisuje nazwie wyjscie procesora dodaj¹c do nazwy odpowiednie
     przyrostki: _PIN, _PORT, _DDR, _BIT.
@@ -100,20 +99,23 @@
     .equ @0_BIT      = @2
 .endmacro
 
-;DEFINE_IO   LED_CLK,        B, 0
-DEFINE_IO   LED_DATA,       C, 7
-DEFINE_IO   TWI_SCL,        C, 5
-DEFINE_IO   TWI_SDA,        C, 4
-DEFINE_IO   BUTTON_H_0,     A, 0
-DEFINE_IO   BUTTON_H_1,     A, 1
-DEFINE_IO   BUTTON_H_2,     A, 2
-DEFINE_IO   BUTTON_V_0,     A, 4
-DEFINE_IO   BUTTON_V_1,     A, 5
-DEFINE_IO   BUTTON_V_2,     A, 6
-DEFINE_IO   LED_POWER,      C, 1
-;DEFINE_IO   LED_SPI_MOSI,   B, 3
-;DEFINE_IO   LED_SPI_SCK,    B, 5
+DEFINE_IO   BUTTON_H_0,     A, 1
+DEFINE_IO   BUTTON_H_1,     A, 3
+DEFINE_IO   BUTTON_H_2,     A, 5
+DEFINE_IO   BUTTON_H_3,     A, 7
+DEFINE_IO   BUTTON_H_4,     C, 6
+DEFINE_IO   BUTTON_V_0,     A, 0
+DEFINE_IO   BUTTON_V_1,     A, 2
+DEFINE_IO   BUTTON_V_2,     A, 4
+DEFINE_IO   BUTTON_V_3,     A, 6
+DEFINE_IO   BUTTON_V_4,     C, 7
+DEFINE_IO   LED_SDO,        C, 2
+.equ        LED_CKO_PORT    = PORTD
+.equ        LED_CKO_DDR     = DDRD
+DEFINE_IO   LED_POWER,      C, 5
+DEFINE_IO   POWER_IO_0,     C, 4
 
+DEFINE_IO   TEST_FREQUENCY, B, 2
 
 
 .equ    BUTTON_STATE_ON_BIT             = 3

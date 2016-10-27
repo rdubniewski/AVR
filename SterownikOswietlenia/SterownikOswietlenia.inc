@@ -73,8 +73,8 @@
 #define R_POINTER_B_H                   ZH
 #define R_POINTER_B                     Z
 
-.def    R_I2C_FLAGS                     = r25
 .def    R_I2C_TMP                       = r24
+.def    R_I2C_TMP_2                     = r25
 .def    R_I2C_MY_ADDRESS_L              = r6
 ;.def    R_I2C_MY_ADDRESS                = r7
 #define R_I2C_BUF_POINTER_L             XL

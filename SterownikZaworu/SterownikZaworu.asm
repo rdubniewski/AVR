@@ -695,7 +695,7 @@ _I2C_CR_0_ARG:
     cpi     R_DATA, I2C_REQUEST_SEARCH_SENSORS
     breq    _I2C_CR_REQUEST_SEARCH_SENSORS
 
-    ; Rozkaz bez argumentow
+    ; Rozkaz resetu
     cpi     R_DATA, I2C_REQUEST_RESET
     breq    _I2C_CR_REQUEST_RESET
     

@@ -1720,16 +1720,36 @@ _TI_GET_DATA_0:
     .endif
     ldi     R_I2C_BUF_POINTER_H, high(I2C_SEND_DATA)
     ldi     R_I2C_BUF_POINTER_L, low(I2C_SEND_DATA)
-    brne    _TI_GET_DATA
-    ; sprawdzenie czy bajt adresu nie nie ma za wielkiej wartosci
+    brne    _TI_GET_DATA_SEND_MEM
+    ; sprawdzenie czy adres nie nie ma za wielkiej wartosci
     lds     R_I2C_TMP, I2C_RECV_DATA
     cpi     R_I2C_TMP, I2C_SEND_DATA_SIZE
-    brsh    _TI_GET_DATA
-    ; zwiekszenie
+    brsh    _TI_GET_DATA_SEND_MEM
+    ; przesuniecie wskaznika na ¿¹dany adres
     add     R_I2C_BUF_POINTER_L, R_I2C_TMP
-    adc     R_I2C_BUF_POINTER_L, R_ZERO
+    adc     R_I2C_BUF_POINTER_H, R_ZERO
+    rjmp    _TI_GET_DATA_SEND_MEM
 .else
     ; 16bit
+    ; sprawdzenie czy poprzednio przysz³y 2 bajty
+    cpi     R_I2C_BUF_POINTER_L, low(I2C_RECV_DATA + 2)
+    ldi     R_I2C_TMP, high(I2C_RECV_DATA + 2)
+    cpc     R_I2C_BUF_POINTER_H, R_I2C_TMP
+    ldi     R_I2C_BUF_POINTER_H, high(I2C_SEND_DATA)
+    ldi     R_I2C_BUF_POINTER_L, low(I2C_SEND_DATA)
+    brne    _TI_GET_DATA_SEND_MEM
+    ; sprawdzenie czy adres nie nie ma za wielkiej wartosci
+    lds     R_I2C_TMP_2, I2C_RECV_DATA + 0
+    lds     R_I2C_TMP, I2C_RECV_DATA + 1
+    cpi     R_I2C_TMP, low(I2C_SEND_DATA_SIZE)
+    ldi     R_I2C_TMP, high(I2C_SEND_DATA_SIZE)
+    cpc     R_I2C_TMP_2, R_I2C_TMP
+    brsh    _TI_GET_DATA_SEND_MEM
+    ; przesuniecie wskaznika na ¿¹dany adres
+    lds     R_I2C_TMP, I2C_RECV_DATA + 1
+    add     R_I2C_BUF_POINTER_L, R_I2C_TMP
+    adc     R_I2C_BUF_POINTER_H, R_I2C_TMP_2
+    rjmp    _TI_GET_DATA_SEND_MEM
 .endif
 
 _TI_GET_DATA:
@@ -1739,15 +1759,16 @@ _TI_GET_DATA:
     ldi     R_I2C_TMP, high(I2C_SEND_DATA_END)
     cpc     R_I2C_BUF_POINTER_H, R_I2C_TMP
 .endif
-    brlo    _TI_W_STORE
+    brlo    _TI_GET_DATA_SEND_MEM
+_TI_GET_DATA_SEND_FF:
     out     TWDR, R_FF
     out     TWCR, R_I2C_TWCR_EA1
     rjmp    _TI_TWCR    
-_TI_W_STORE:
+_TI_GET_DATA_SEND_MEM:
     ld      R_I2C_TMP, R_I2C_BUF_POINTER+
     out     TWDR, R_I2C_TMP
     out     TWCR, R_I2C_TWCR_EA1
-    rjmp    _TI_TWCR    
+    ;rjmp    _TI_TWCR    
 
 _TI_TWCR:
     out     SREG, R_SREG_INTERRUPT_STORE

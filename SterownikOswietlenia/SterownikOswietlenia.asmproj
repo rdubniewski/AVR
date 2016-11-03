@@ -38,8 +38,7 @@
         </dependencies>
       </framework-data>
     </AsfFrameworkConfig>
-    <avrtool>
-    </avrtool>
+    <avrtool>com.atmel.avrdbg.tool.simulator</avrtool>
     <com_atmel_avrdbg_tool_simulator>
       <ToolOptions>
         <InterfaceProperties>
@@ -57,22 +56,25 @@
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <ToolchainSettings>
       <AvrAssembler>
-  <avrasm.assembler.general.GenerateEEPFile>True</avrasm.assembler.general.GenerateEEPFile>
-  <avrasm.assembler.general.AdditionalIncludeDirectories>
-    <ListValues>
-      <Value>../../Lib</Value>
-      <Value>../../Common</Value>
-    </ListValues>
-  </avrasm.assembler.general.AdditionalIncludeDirectories>
-  <avrasm.assembler.general.IncludeFile>(%24IncludeFile)</avrasm.assembler.general.IncludeFile>
-</AvrAssembler>
+        <avrasm.assembler.general.GenerateEEPFile>True</avrasm.assembler.general.GenerateEEPFile>
+        <avrasm.assembler.general.AdditionalIncludeDirectories>
+          <ListValues>
+            <Value>../../Lib</Value>
+            <Value>../../Common</Value>
+          </ListValues>
+        </avrasm.assembler.general.AdditionalIncludeDirectories>
+        <avrasm.assembler.general.IncludeFile>(%24IncludeFile)</avrasm.assembler.general.IncludeFile>
+      </AvrAssembler>
     </ToolchainSettings>
     <OutputType>Executable</OutputType>
-    <PostBuildEvent>echo  $(avrdude) -p $(avrdevice) -c stk200 -P lpt1 -i 50 -U lfuse:w:0xFF:m -U hfuse:w:0x49:m  -U flash:w:"$(OutputDirectory)\$(OutputFileName).hex":i &gt; "$(OutputDirectory)\avrdude.flash.bat"
-
-type "$(OutputDirectory)\avrdude.flash.bat" &gt; "$(OutputDirectory)\avrdude.flash.ee.bat"
-
-echo  -U eeprom:w:"$(OutputDirectory)\$(OutputFileName).eep":i  &gt;&gt; "$(OutputDirectory)\avrdude.flash.ee.bat"</PostBuildEvent>
+    <PostBuildEvent>set prog=$(avrdude) -p $(avrdevice) -c stk200 -P lpt1 -i 10
+set fuse=-U lfuse:w:0xFF:m -U hfuse:w:0x49:m
+set flash=-U flash:w:"$(OutputDirectory)\$(OutputFileName).hex":i
+set epr=-U eeprom:w:"$(OutputDirectory)\$(OutputFileName).eep":i
+echo  %prog% %fuse%  &gt; "$(OutputDirectory)\avrdude.fuse.bat"
+echo  %prog% %flash%  &gt; "$(OutputDirectory)\avrdude.flash.bat"
+echo  %prog% %epr%  &gt; "$(OutputDirectory)\avrdude.ee.bat"
+</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <ToolchainSettings>
